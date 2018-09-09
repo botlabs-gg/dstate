@@ -27,6 +27,9 @@ type State struct {
 	// (Messages gets checked when a new message in the channel comes in)
 	MaxMessageAge time.Duration
 
+	// Gives you the ability to grant conditional limits
+	CustomLimitProvider LimitProvider
+
 	TrackChannels       bool
 	TrackMembers        bool
 	TrackRoles          bool
@@ -377,7 +380,13 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 			return
 		}
 
-		channel.MessageAddUpdate(true, evt.Message, s.MaxChannelMessages, s.MaxMessageAge)
+		maxMessages := s.MaxChannelMessages
+		maxMessageAge := s.MaxMessageAge
+		if !channel.IsPrivate() && s.CustomLimitProvider != nil {
+			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(channel)
+		}
+
+		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge)
 	case *discordgo.MessageUpdate:
 		channel := s.Channel(true, evt.ChannelID)
 		if channel == nil {
@@ -387,7 +396,13 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 			return
 		}
 
-		channel.MessageAddUpdate(true, evt.Message, s.MaxChannelMessages, s.MaxMessageAge)
+		maxMessages := s.MaxChannelMessages
+		maxMessageAge := s.MaxMessageAge
+		if !channel.IsPrivate() && s.CustomLimitProvider != nil {
+			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(channel)
+		}
+
+		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge)
 	case *discordgo.MessageDelete:
 		channel := s.Channel(true, evt.ChannelID)
 		if channel == nil {
@@ -450,4 +465,8 @@ type RWLocker interface {
 	RUnlock()
 	Lock()
 	Unlock()
+}
+
+type LimitProvider interface {
+	MessageLimits(cs *ChannelState) (maxMessages int, maxMessageAge time.Duration)
 }
