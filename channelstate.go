@@ -179,8 +179,6 @@ func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, maxMe
 		defer c.Owner.Unlock()
 	}
 
-	defer c.UpdateMessages(false, maxMessages, maxMessageAge)
-
 	existing := c.Message(false, msg.ID)
 	if existing != nil {
 		existing.Update(msg)
@@ -196,8 +194,15 @@ func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, maxMe
 		}
 
 		ms.ParseTimes()
+		if maxMessageAge > 0 && time.Since(ms.ParsedCreated) > maxMessageAge {
+			// Message was old so don't bother with it
+			return
+		}
+
 		c.Messages = append(c.Messages, ms)
 	}
+
+	c.UpdateMessages(false, maxMessages, maxMessageAge)
 }
 
 // UpdateMessages checks the messages to make sure they fit max message age and max messages
@@ -217,6 +222,8 @@ func (c *ChannelState) UpdateMessages(lock bool, maxMsgs int, maxAge time.Durati
 	}
 
 	now := time.Now()
+
+	// Iterate reverse, new messages are at the end of the slice so iterate until we hit the first old message
 	for i := len(c.Messages) - 1; i >= 0; i-- {
 		m := c.Messages[i]
 
@@ -227,8 +234,7 @@ func (c *ChannelState) UpdateMessages(lock bool, maxMsgs int, maxAge time.Durati
 
 		if now.Sub(ts) > maxAge {
 			// All messages before this is old aswell
-			// TODO: remove by edited timestamp if set
-			c.Messages = c.Messages[i:]
+			c.Messages = c.Messages[i+1:]
 			break
 		}
 	}
