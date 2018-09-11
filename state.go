@@ -386,7 +386,7 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(channel)
 		}
 
-		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge)
+		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge, false, true)
 	case *discordgo.MessageUpdate:
 		channel := s.Channel(true, evt.ChannelID)
 		if channel == nil {
@@ -402,7 +402,7 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(channel)
 		}
 
-		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge)
+		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge, true, true)
 	case *discordgo.MessageDelete:
 		channel := s.Channel(true, evt.ChannelID)
 		if channel == nil {

@@ -28,6 +28,13 @@ type ChannelState struct {
 
 	// Accessing the channel without locking the owner yields undefined behaviour
 	Messages []*MessageState `json:"messages"`
+
+	// The last message edit we didn't have the original message tracked for
+	// we don't put those in the state because the ordering would be messed up
+	// and there could be some unknown messages before and after
+	// but in some cases (embed edits for example) the edit can come before the create event
+	// for those edge cases we store the last edited unknown message here, then apply it as an update
+	LastUnknownMsgEdit *discordgo.Message `json:"last_unknown_msg_edit"`
 }
 
 func NewChannelState(guild *GuildState, owner RWLocker, channel *discordgo.Channel) *ChannelState {
@@ -173,7 +180,7 @@ func (c *ChannelState) Message(lock bool, mID int64) *MessageState {
 }
 
 // MessageAddUpdate adds or updates an existing message
-func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, maxMessages int, maxMessageAge time.Duration) {
+func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, maxMessages int, maxMessageAge time.Duration, edit bool, updateMessages bool) {
 	if lock {
 		c.Owner.Lock()
 		defer c.Owner.Unlock()
@@ -188,6 +195,12 @@ func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, maxMe
 		msgCopy := new(discordgo.Message)
 		*msgCopy = *msg
 
+		if edit {
+			// putting this message in state would disrupt the ordering
+			c.LastUnknownMsgEdit = msgCopy
+			return
+		}
+
 		// Add the new one
 		ms := &MessageState{
 			Message: msgCopy,
@@ -199,10 +212,18 @@ func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, maxMe
 			return
 		}
 
+		if !edit && c.LastUnknownMsgEdit != nil && c.LastUnknownMsgEdit.ID == msgCopy.ID {
+			// if we received an out of order edit event before the create event (could happen in rare scenarios)
+			ms.Update(c.LastUnknownMsgEdit)
+			c.LastUnknownMsgEdit = nil
+		}
+
 		c.Messages = append(c.Messages, ms)
 	}
 
-	c.UpdateMessages(false, maxMessages, maxMessageAge)
+	if updateMessages {
+		c.UpdateMessages(false, maxMessages, maxMessageAge)
+	}
 }
 
 // UpdateMessages checks the messages to make sure they fit max message age and max messages
