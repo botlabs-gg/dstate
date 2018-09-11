@@ -160,7 +160,13 @@ func (m *MemberState) Copy() *MemberState {
 	return cop
 }
 
+var ZeroAvatar [16]byte
+
 func (m *MemberState) StrAvatar() string {
+	if m.Avatar == ZeroAvatar {
+		return ""
+	}
+
 	dst := make([]byte, 32)
 
 	hex.Encode(dst, m.Avatar[:])
