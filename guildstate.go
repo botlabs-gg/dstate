@@ -363,7 +363,8 @@ func (g *GuildState) RoleAddUpdate(lock bool, newRole *discordgo.Role) {
 	if existing != nil {
 		*existing = *newRole
 	} else {
-		g.Guild.Roles = append(g.Guild.Roles, newRole)
+		rCop := *newRole
+		g.Guild.Roles = append(g.Guild.Roles, &rCop)
 	}
 }
 
