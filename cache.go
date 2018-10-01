@@ -42,6 +42,11 @@ func (c *Cache) Set(key, value interface{}) {
 	bucket.Value = value
 }
 
+// Del deletes an item from the cache, this mutates state and needs to be used with a full lock, if its used from multiple goroutines
+func (c *Cache) Del(key interface{}) {
+	delete(c.store, key)
+}
+
 type CacheFetchFunc func() (value interface{}, err error)
 
 // Fetch either retrieves an item directly from the cache if available, or calls the passed fetchFunc to then set it in cache and return it

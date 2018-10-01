@@ -550,6 +550,20 @@ func (g *GuildState) UserCacheSet(lock bool, key interface{}, value interface{})
 	g.userCache.Set(key, value)
 }
 
+func (g *GuildState) UserCacheDel(lock bool, key interface{}) {
+	if lock {
+		g.Lock()
+		defer g.Unlock()
+	}
+
+	if g.userCache == nil {
+		g.userCache = NewCache()
+		return // nothing to delete
+	}
+
+	g.userCache.Del(key)
+}
+
 func (g *GuildState) UserCacheFetch(lock bool, key interface{}, fetchFunc CacheFetchFunc) (interface{}, error) {
 	if lock {
 		// check fastpatch
