@@ -28,6 +28,8 @@ type GuildState struct {
 	MaxMessageDuration    time.Duration // Max age of messages, if 0 ignored. (Only checks age whena new message is received on the channel)
 	RemoveDeletedMessages bool
 	RemoveOfflineMembers  bool
+
+	userCache *Cache `json:"-"`
 }
 
 // NewGuildstate creates a new guild state, it only uses the passed state to get settings from
@@ -37,10 +39,11 @@ func NewGuildState(guild *discordgo.Guild, state *State) *GuildState {
 	*gCop = *guild
 
 	guildState := &GuildState{
-		ID:       guild.ID,
-		Guild:    gCop,
-		Members:  make(map[int64]*MemberState),
-		Channels: make(map[int64]*ChannelState),
+		ID:        guild.ID,
+		Guild:     gCop,
+		Members:   make(map[int64]*MemberState),
+		Channels:  make(map[int64]*ChannelState),
+		userCache: NewCache(),
 	}
 
 	if state != nil {
@@ -511,4 +514,58 @@ func (g *GuildState) MemberPermissions(lock bool, channelID int64, memberID int6
 	}
 
 	return
+}
+
+func (g *GuildState) runGC(cacheExpirey time.Duration) (cacheN int) {
+	if g.userCache != nil {
+		cacheN = g.userCache.EvictOldKeys(time.Now().Add(-cacheExpirey))
+	}
+
+	return
+}
+
+func (g *GuildState) UserCacheGet(lock bool, key interface{}) interface{} {
+	if lock {
+		g.RLock()
+		defer g.RUnlock()
+	}
+
+	if g.userCache == nil {
+		return nil
+	}
+
+	return g.userCache.Get(key)
+}
+
+func (g *GuildState) UserCacheSet(lock bool, key interface{}, value interface{}) {
+	if lock {
+		g.Lock()
+		defer g.Unlock()
+	}
+
+	if g.userCache == nil {
+		g.userCache = NewCache()
+	}
+
+	g.userCache.Set(key, value)
+}
+
+func (g *GuildState) Fetch(lock bool, key interface{}, fetchFunc CacheFetchFunc) (interface{}, error) {
+	if lock {
+		// check fastpatch
+		v := g.UserCacheGet(true, key)
+		if v != nil {
+			return v, nil
+		}
+
+		// fast path failed, use full lock
+		g.Lock()
+		defer g.Unlock()
+	}
+
+	if g.userCache == nil {
+		g.userCache = NewCache()
+	}
+
+	return g.userCache.Fetch(key, fetchFunc)
 }

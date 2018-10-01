@@ -45,6 +45,9 @@ type State struct {
 
 	// Enabled debug logging
 	Debug bool
+
+	// How long guild user caches should be active
+	CacheExpirey time.Duration
 }
 
 func NewState() *State {
@@ -60,6 +63,8 @@ func NewState() *State {
 		TrackPresences:        true,
 		RemoveDeletedMessages: true,
 		ThrowAwayDMMessages:   true,
+
+		CacheExpirey: time.Minute,
 	}
 }
 
@@ -457,6 +462,46 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 	if s.Debug {
 		t := reflect.Indirect(reflect.ValueOf(i)).Type()
 		log.Printf("Handled event %s; %#v", t.Name(), i)
+	}
+}
+
+func (s *State) RunGCWorker() {
+	for {
+		s.runGC()
+	}
+}
+
+func (s *State) runGC() {
+	// just for safety
+	time.Sleep(time.Millisecond * 10)
+
+	// Get a copy of all the guild states, that way we dont need to keep the main guild store locked
+	guilds := make([]*GuildState, 0, 1000)
+	s.RLock()
+	for _, v := range s.Guilds {
+		guilds = append(guilds, v)
+	}
+	s.RUnlock()
+
+	// Start chewing through em
+	// we sleep 10ms between each process, and make sure we've gotten through each guild in 60 seconds
+	processPerInterval := len(guilds) / (60 * 100)
+	if processPerInterval < 1 {
+		processPerInterval = 1
+	}
+
+	processedNow := 0
+	evicted := 0
+	for _, g := range guilds {
+		processedNow++
+
+		if processedNow >= processPerInterval {
+			time.Sleep(time.Millisecond * 10)
+			processedNow = 0
+			evicted = 0
+		}
+
+		evicted += g.runGC(s.CacheExpirey)
 	}
 }
 
