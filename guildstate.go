@@ -550,7 +550,7 @@ func (g *GuildState) UserCacheSet(lock bool, key interface{}, value interface{})
 	g.userCache.Set(key, value)
 }
 
-func (g *GuildState) Fetch(lock bool, key interface{}, fetchFunc CacheFetchFunc) (interface{}, error) {
+func (g *GuildState) UserCacheFetch(lock bool, key interface{}, fetchFunc CacheFetchFunc) (interface{}, error) {
 	if lock {
 		// check fastpatch
 		v := g.UserCacheGet(true, key)
