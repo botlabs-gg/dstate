@@ -194,17 +194,24 @@ func (m *MemberState) DGoUser() *discordgo.User {
 		Username:      m.Username,
 		Bot:           m.Bot,
 		Avatar:        m.StrAvatar(),
-		Discriminator: strconv.FormatInt(int64(m.Discriminator), 10),
-	}
-
-	// Pad the discrim
-	if m.Discriminator < 10 {
-		user.Discriminator = "000" + user.Discriminator
-	} else if m.Discriminator < 100 {
-		user.Discriminator = "00" + user.Discriminator
-	} else if m.Discriminator < 1000 {
-		user.Discriminator = "0" + user.Discriminator
+		Discriminator: m.StrDiscriminator(),
 	}
 
 	return user
+}
+
+func (m *MemberState) StrDiscriminator() string {
+
+	result := strconv.FormatInt(int64(m.Discriminator), 10)
+
+	// Pad the discrim
+	if m.Discriminator < 10 {
+		result = "000" + result
+	} else if m.Discriminator < 100 {
+		result = "00" + result
+	} else if m.Discriminator < 1000 {
+		result = "0" + result
+	}
+
+	return result
 }
