@@ -517,9 +517,11 @@ func (g *GuildState) MemberPermissions(lock bool, channelID int64, memberID int6
 }
 
 func (g *GuildState) runGC(cacheExpirey time.Duration) (cacheN int) {
+	g.Lock()
 	if g.userCache != nil {
 		cacheN = g.userCache.EvictOldKeys(time.Now().Add(-cacheExpirey))
 	}
+	g.Unlock()
 
 	return
 }
