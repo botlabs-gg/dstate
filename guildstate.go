@@ -393,7 +393,8 @@ func (g *GuildState) VoiceState(lock bool, userID int64) *discordgo.VoiceState {
 
 	for _, v := range g.Guild.VoiceStates {
 		if v.UserID == userID {
-			return v
+			cop := *v
+			return &cop
 		}
 	}
 
