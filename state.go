@@ -505,6 +505,20 @@ func (s *State) runGC() {
 	}
 }
 
+func (s *State) GuildsSlice(lock bool) []*GuildState {
+	if lock {
+		s.RLock()
+		defer s.RUnlock()
+	}
+
+	dst := make([]*GuildState, 0, len(s.Guilds))
+	for _, g := range s.Guilds {
+		dst = append(dst, g)
+	}
+
+	return dst
+}
+
 type RWLocker interface {
 	RLock()
 	RUnlock()
