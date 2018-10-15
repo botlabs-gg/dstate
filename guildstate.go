@@ -447,6 +447,21 @@ func (g *GuildState) MemberPermissions(lock bool, channelID int64, memberID int6
 		return 0, ErrMemberNotFound
 	}
 
+	return g.MemberPermissionsMS(false, channelID, mState)
+}
+
+// Calculates the permissions for a member.
+// https://support.discordapp.com/hc/en-us/articles/206141927-How-is-the-permission-hierarchy-structured-
+func (g *GuildState) MemberPermissionsMS(lock bool, channelID int64, mState *MemberState) (apermissions int, err error) {
+	if lock {
+		g.RLock()
+		defer g.RUnlock()
+	}
+
+	if mState.ID == g.Guild.OwnerID {
+		return discordgo.PermissionAll, nil
+	}
+
 	for _, role := range g.Guild.Roles {
 		if role.ID == g.Guild.ID {
 			apermissions |= role.Permissions
@@ -502,7 +517,7 @@ func (g *GuildState) MemberPermissions(lock bool, channelID int64, memberID int6
 	apermissions |= allows
 
 	for _, overwrite := range cState.PermissionOverwrites {
-		if overwrite.Type == "member" && overwrite.ID == memberID {
+		if overwrite.Type == "member" && overwrite.ID == mState.ID {
 			apermissions &= ^overwrite.Deny
 			apermissions |= overwrite.Allow
 			break
