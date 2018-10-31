@@ -30,12 +30,13 @@ type State struct {
 	// Gives you the ability to grant conditional limits
 	CustomLimitProvider LimitProvider
 
-	TrackChannels       bool
-	TrackMembers        bool
-	TrackRoles          bool
-	TrackVoice          bool
-	TrackPresences      bool
-	ThrowAwayDMMessages bool // Don't track dm messages if set
+	TrackChannels        bool
+	TrackPrivateChannels bool // Dm's, group DM's etc
+	TrackMembers         bool
+	TrackRoles           bool
+	TrackVoice           bool
+	TrackPresences       bool
+	ThrowAwayDMMessages  bool // Don't track dm messages if set
 
 	// Removes offline members from the state, requires trackpresences
 	RemoveOfflineMembers bool
@@ -57,6 +58,7 @@ func NewState() *State {
 		PrivateChannels: make(map[int64]*ChannelState),
 
 		TrackChannels:         true,
+		TrackPrivateChannels:  true,
 		TrackMembers:          true,
 		TrackRoles:            true,
 		TrackVoice:            true,
@@ -196,10 +198,12 @@ func (s *State) HandleReady(r *discordgo.Ready) {
 
 	s.r = r
 
-	for _, channel := range r.PrivateChannels {
-		cs := NewChannelState(nil, &sync.RWMutex{}, channel)
-		s.Channels[channel.ID] = cs
-		s.PrivateChannels[channel.ID] = cs
+	if s.TrackPrivateChannels {
+		for _, channel := range r.PrivateChannels {
+			cs := NewChannelState(nil, &sync.RWMutex{}, channel)
+			s.Channels[channel.ID] = cs
+			s.PrivateChannels[channel.ID] = cs
+		}
 	}
 
 	for _, v := range r.Guilds {
@@ -248,6 +252,9 @@ func (s *State) ChannelAddUpdate(newChannel *discordgo.Channel) {
 			return
 		}
 	} else {
+		if !s.TrackPrivateChannels {
+			return
+		}
 		// Belongs to no guild, so we can create a new rwmutex
 		c = NewChannelState(nil, &sync.RWMutex{}, newChannel)
 	}
