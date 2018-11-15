@@ -24,10 +24,9 @@ type GuildState struct {
 	Members  map[int64]*MemberState  `json:"members"`
 	Channels map[int64]*ChannelState `json:"channels" `
 
-	MaxMessages           int           // Absolute max number of messages cached in a channel
-	MaxMessageDuration    time.Duration // Max age of messages, if 0 ignored. (Only checks age whena new message is received on the channel)
-	RemoveDeletedMessages bool
-	RemoveOfflineMembers  bool
+	MaxMessages          int           // Absolute max number of messages cached in a channel
+	MaxMessageDuration   time.Duration // Max age of messages, if 0 ignored. (Only checks age whena new message is received on the channel)
+	RemoveOfflineMembers bool
 
 	userCache *Cache `json:"-"`
 }
@@ -49,7 +48,6 @@ func NewGuildState(guild *discordgo.Guild, state *State) *GuildState {
 	if state != nil {
 		guildState.MaxMessages = state.MaxChannelMessages
 		guildState.MaxMessageDuration = state.MaxMessageAge
-		guildState.RemoveDeletedMessages = state.RemoveDeletedMessages
 		guildState.RemoveOfflineMembers = state.RemoveOfflineMembers
 	}
 
@@ -69,6 +67,8 @@ func NewGuildState(guild *discordgo.Guild, state *State) *GuildState {
 
 	gCop.Presences = nil
 	gCop.Members = nil
+	gCop.Emojis = nil
+	gCop.Channels = nil
 
 	return guildState
 }

@@ -36,13 +36,14 @@ type State struct {
 	TrackRoles           bool
 	TrackVoice           bool
 	TrackPresences       bool
+	TrackMessages        bool
 	ThrowAwayDMMessages  bool // Don't track dm messages if set
 
 	// Removes offline members from the state, requires trackpresences
 	RemoveOfflineMembers bool
 
 	// Set to remove deleted messages from state
-	RemoveDeletedMessages bool
+	KeepDeletedMessages bool
 
 	// Enabled debug logging
 	Debug bool
@@ -57,14 +58,15 @@ func NewState() *State {
 		Channels:        make(map[int64]*ChannelState),
 		PrivateChannels: make(map[int64]*ChannelState),
 
-		TrackChannels:         true,
-		TrackPrivateChannels:  true,
-		TrackMembers:          true,
-		TrackRoles:            true,
-		TrackVoice:            true,
-		TrackPresences:        true,
-		RemoveDeletedMessages: true,
-		ThrowAwayDMMessages:   true,
+		TrackChannels:        true,
+		TrackPrivateChannels: true,
+		TrackMembers:         true,
+		TrackRoles:           true,
+		TrackVoice:           true,
+		TrackPresences:       true,
+		KeepDeletedMessages:  true,
+		ThrowAwayDMMessages:  true,
+		TrackMessages:        true,
 
 		CacheExpirey: time.Minute,
 	}
@@ -384,6 +386,10 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 
 	// Message events
 	case *discordgo.MessageCreate:
+		if !s.TrackMessages {
+			return
+		}
+
 		channel := s.Channel(true, evt.ChannelID)
 		if channel == nil {
 			return
@@ -400,6 +406,10 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 
 		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge, false, true)
 	case *discordgo.MessageUpdate:
+		if !s.TrackMessages {
+			return
+		}
+
 		channel := s.Channel(true, evt.ChannelID)
 		if channel == nil {
 			return
@@ -416,6 +426,10 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 
 		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge, true, true)
 	case *discordgo.MessageDelete:
+		if !s.TrackMessages {
+			return
+		}
+
 		channel := s.Channel(true, evt.ChannelID)
 		if channel == nil {
 			return
@@ -423,8 +437,12 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 		if channel.IsPrivate() && s.ThrowAwayDMMessages {
 			return
 		}
-		channel.MessageRemove(true, evt.Message.ID, s.RemoveDeletedMessages)
+		channel.MessageRemove(true, evt.Message.ID, s.KeepDeletedMessages)
 	case *discordgo.MessageDeleteBulk:
+		if !s.TrackMessages {
+			return
+		}
+
 		channel := s.Channel(true, evt.ChannelID)
 		if channel == nil {
 			return
@@ -436,7 +454,7 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 		defer channel.Owner.Unlock()
 
 		for _, v := range evt.Messages {
-			channel.MessageRemove(false, v, s.RemoveDeletedMessages)
+			channel.MessageRemove(false, v, s.KeepDeletedMessages)
 		}
 
 	// Other
