@@ -115,14 +115,15 @@ func (s *State) Channel(lock bool, id int64) *ChannelState {
 
 // ChannelCopy returns a copy of a channel,
 // lock dictates wether state should be RLocked or not, channel will be locked regardless
-func (s *State) ChannelCopy(lock bool, id int64, deep bool) *ChannelState {
+// All slices on the copy are safe to read, but not write to
+func (s *State) ChannelCopy(lock bool, id int64) *ChannelState {
 
 	cState := s.Channel(lock, id)
 	if cState == nil {
 		return nil
 	}
 
-	return cState.Copy(true, deep)
+	return cState.Copy(true)
 }
 
 // Differantiate between create and update
@@ -394,13 +395,13 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 		if channel == nil {
 			return
 		}
-		if channel.IsPrivate() && s.ThrowAwayDMMessages {
+		if channel.IsPrivate && s.ThrowAwayDMMessages {
 			return
 		}
 
 		maxMessages := s.MaxChannelMessages
 		maxMessageAge := s.MaxMessageAge
-		if !channel.IsPrivate() && s.CustomLimitProvider != nil {
+		if !channel.IsPrivate && s.CustomLimitProvider != nil {
 			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(channel)
 		}
 
@@ -414,13 +415,13 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 		if channel == nil {
 			return
 		}
-		if channel.IsPrivate() && s.ThrowAwayDMMessages {
+		if channel.IsPrivate && s.ThrowAwayDMMessages {
 			return
 		}
 
 		maxMessages := s.MaxChannelMessages
 		maxMessageAge := s.MaxMessageAge
-		if !channel.IsPrivate() && s.CustomLimitProvider != nil {
+		if !channel.IsPrivate && s.CustomLimitProvider != nil {
 			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(channel)
 		}
 
@@ -434,7 +435,7 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 		if channel == nil {
 			return
 		}
-		if channel.IsPrivate() && s.ThrowAwayDMMessages {
+		if channel.IsPrivate && s.ThrowAwayDMMessages {
 			return
 		}
 		channel.MessageRemove(true, evt.Message.ID, s.KeepDeletedMessages)
@@ -447,7 +448,7 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 		if channel == nil {
 			return
 		}
-		if channel.IsPrivate() && s.ThrowAwayDMMessages {
+		if channel.IsPrivate && s.ThrowAwayDMMessages {
 			return
 		}
 		channel.Owner.Lock()
@@ -473,7 +474,7 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 		}
 		g := s.Guild(true, evt.GuildID)
 		if g != nil {
-			g.VoiceStateUpdate(true, evt)
+			g.VoiceStateUpdate(true, evt.VoiceState)
 		}
 	case *discordgo.Ready:
 		s.HandleReady(evt)

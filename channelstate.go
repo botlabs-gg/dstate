@@ -7,14 +7,15 @@ import (
 
 // ChannelState represents a channel's state
 type ChannelState struct {
-	Owner RWLocker    `json:"-" msgpack:"-"`
-	Guild *GuildState `json:"-" msgpack:"-"`
-
 	// These fields never change
-	ID   int64                 `json:"id"`
-	Type discordgo.ChannelType `json:"type"`
+	ID        int64       `json:"id"`
+	Owner     RWLocker    `json:"-" msgpack:"-"`
+	Guild     *GuildState `json:"-" msgpack:"-"`
+	IsPrivate bool
 
+	// Mutable fields, use Copy() or lock it
 	Name                 string                           `json:"name"`
+	Type                 discordgo.ChannelType            `json:"type"`
 	Topic                string                           `json:"topic"`
 	LastMessageID        int64                            `json:"last_message_id"`
 	NSFW                 bool                             `json:"nsfw"`
@@ -23,7 +24,7 @@ type ChannelState struct {
 	PermissionOverwrites []*discordgo.PermissionOverwrite `json:"permission_overwrites"`
 	ParentID             int64                            `json:"parent_id"`
 
-	// Recicipient used to never be mutated but in the case with group dm's it can
+	// Safe to access in a copy, but not write to in a copy
 	Recipients []*discordgo.User `json:"recipients"`
 
 	// Accessing the channel without locking the owner yields undefined behaviour
@@ -43,9 +44,12 @@ func NewChannelState(guild *GuildState, owner RWLocker, channel *discordgo.Chann
 		Owner: owner,
 		Guild: guild,
 
-		ID:   channel.ID,
-		Type: channel.Type,
+		ID: channel.ID,
+		// Type chan change, but the channel can never go from a dm type to a guild type, or vice versa
+		// since its usefull to access this without locking, store that here
+		IsPrivate: IsPrivate(channel.Type),
 
+		Type:                 channel.Type,
 		Name:                 channel.Name,
 		Topic:                channel.Topic,
 		LastMessageID:        channel.LastMessageID,
@@ -61,6 +65,8 @@ func NewChannelState(guild *GuildState, owner RWLocker, channel *discordgo.Chann
 	return cs
 }
 
+// DGoCopy returns a discordgo version of the channel representation
+// usefull for legacy api's and whatnot
 func (c *ChannelState) DGoCopy() *discordgo.Channel {
 	channel := &discordgo.Channel{
 
@@ -106,15 +112,12 @@ func (cs *ChannelState) Recipient() *discordgo.User {
 	return cs.Recipients[0]
 }
 
-// IsPrivate returns true if the channel is private
-// This does no locking as Type is immutable
-func (cs *ChannelState) IsPrivate() bool {
-	return IsPrivate(cs.Type)
-}
-
 // Copy returns a copy of the channel
-// if deep is true, permissionoverwrites will be copied
-func (c *ChannelState) Copy(lock bool, deep bool) *ChannelState {
+// permissionoverwrites will be copied
+// note: this is not a deep copy, modifying any of the slices is undefined behaviour,
+// reading is fine as they're completely replaced when a update occurs
+// (messages is another thing and is not available in this copy, manual management of the lock is needed for that)
+func (c *ChannelState) Copy(lock bool) *ChannelState {
 	if lock {
 		c.Owner.RLock()
 		defer c.Owner.RUnlock()
@@ -123,17 +126,7 @@ func (c *ChannelState) Copy(lock bool, deep bool) *ChannelState {
 	cop := new(ChannelState)
 	*cop = *c
 
-	cop.PermissionOverwrites = nil
 	cop.Messages = nil
-
-	if deep {
-		for _, pow := range c.PermissionOverwrites {
-			powCopy := new(discordgo.PermissionOverwrite)
-			*powCopy = *pow
-			cop.PermissionOverwrites = append(cop.PermissionOverwrites, pow)
-		}
-	}
-
 	return cop
 }
 
@@ -170,13 +163,24 @@ func (c *ChannelState) Message(lock bool, mID int64) *MessageState {
 		defer c.Owner.RUnlock()
 	}
 
-	for _, m := range c.Messages {
-		if m.Message.ID == mID {
-			return m
+	index := c.messageIndex(mID)
+
+	if index == -1 {
+		return nil
+	}
+
+	return c.Messages[index]
+}
+
+func (c *ChannelState) messageIndex(mID int64) int {
+	// since this should be ordered by low-high, maybe we should do a binary search?
+	for i, v := range c.Messages {
+		if v.ID == mID {
+			return i
 		}
 	}
 
-	return nil
+	return -1
 }
 
 // MessageAddUpdate adds or updates an existing message
@@ -186,39 +190,31 @@ func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, maxMe
 		defer c.Owner.Unlock()
 	}
 
-	existing := c.Message(false, msg.ID)
-	if existing != nil {
-		existing.Update(msg)
-	} else {
-		// make a copy
-		// No need to copy author aswell as that isnt mutated
-		msgCopy := deepCopyMessage(msg)
+	existingIndex := c.messageIndex(msg.ID)
 
-		if edit {
-			// putting this message in state would disrupt the ordering
-			c.LastUnknownMsgEdit = msgCopy
-			return
-		}
-
-		// Add the new one
-		ms := &MessageState{
-			Message: msgCopy,
-		}
-
-		ms.ParseTimes()
-		if maxMessageAge > 0 && time.Since(ms.ParsedCreated) > maxMessageAge {
-			// Message was old so don't bother with it
-			return
-		}
-
-		if !edit && c.LastUnknownMsgEdit != nil && c.LastUnknownMsgEdit.ID == msgCopy.ID {
-			// if we received an out of order edit event before the create event (could happen in rare scenarios)
-			ms.Update(c.LastUnknownMsgEdit)
-			c.LastUnknownMsgEdit = nil
-		}
-
-		c.Messages = append(c.Messages, ms)
+	if existingIndex != -1 {
+		c.Messages[existingIndex].Update(msg)
+		return
 	}
+
+	if edit {
+		c.LastUnknownMsgEdit = msg
+		return
+	}
+
+	ms := MessageStateFromMessage(msg)
+
+	if c.LastUnknownMsgEdit != nil && c.LastUnknownMsgEdit.ID == ms.ID {
+		ms.Update(c.LastUnknownMsgEdit)
+		c.LastUnknownMsgEdit = nil
+	}
+
+	if maxMessageAge > 0 && time.Since(ms.ParsedCreated) > maxMessageAge {
+		// Message was old so don't bother with it
+		return
+	}
+
+	c.Messages = append(c.Messages, ms)
 
 	if updateMessages {
 		c.UpdateMessages(false, maxMessages, maxMessageAge)
@@ -278,7 +274,7 @@ func (c *ChannelState) MessageRemove(lock bool, messageID int64, mark bool) {
 	}
 
 	for i, ms := range c.Messages {
-		if ms.Message.ID == messageID {
+		if ms.ID == messageID {
 			if !mark {
 				c.Messages = append(c.Messages[:i], c.Messages[i+1:]...)
 			} else {

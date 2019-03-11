@@ -55,7 +55,7 @@ func NewGuildState(guild *discordgo.Guild, state *State) *GuildState {
 		guildState.ChannelAddUpdate(false, channel)
 	}
 
-	if state.TrackMembers {
+	if state != nil && state.TrackMembers {
 		for _, member := range gCop.Members {
 			guildState.MemberAddUpdate(false, member)
 		}
@@ -138,6 +138,45 @@ func (g *GuildState) LightCopy(lock bool) *discordgo.Guild {
 	return gCopy
 }
 
+// DeepCopy returns a deeper copy of the inner guild, with full copies of the specified slices
+func (g *GuildState) DeepCopy(lock bool, copyRoles, copyVoiceStates, copyChannels bool) *discordgo.Guild {
+	if lock {
+		g.RLock()
+		defer g.RUnlock()
+	}
+
+	gCopy := new(discordgo.Guild)
+
+	*gCopy = *g.Guild
+	gCopy.Members = nil
+	gCopy.Presences = nil
+	gCopy.Channels = nil
+	gCopy.VoiceStates = nil
+	gCopy.Roles = nil
+
+	if copyRoles {
+		gCopy.Roles = make([]*discordgo.Role, len(g.Guild.Roles))
+		copy(gCopy.Roles, g.Guild.Roles)
+	}
+
+	if copyVoiceStates {
+		gCopy.VoiceStates = make([]*discordgo.VoiceState, len(g.Guild.VoiceStates))
+		copy(gCopy.VoiceStates, g.Guild.VoiceStates)
+	}
+
+	if copyChannels {
+		gCopy.Channels = make([]*discordgo.Channel, len(g.Channels))
+
+		i := 0
+		for _, v := range g.Channels {
+			gCopy.Channels[i] = v.DGoCopy()
+			i++
+		}
+	}
+
+	return gCopy
+}
+
 // Member returns a the member from an id, or nil if not found
 func (g *GuildState) Member(lock bool, id int64) *MemberState {
 	if lock {
@@ -162,22 +201,6 @@ func (g *GuildState) MemberCopy(lock bool, id int64) *MemberState {
 	}
 
 	return m.Copy()
-}
-
-// ChannelCopy returns a copy of a channel
-// if deep is true, permissionoverwrites will be copied, otherwise nil
-func (g *GuildState) ChannelCopy(lock bool, id int64, deep bool) *ChannelState {
-	if lock {
-		g.RLock()
-		defer g.RUnlock()
-	}
-
-	c := g.Channel(false, id)
-	if c == nil {
-		return nil
-	}
-
-	return c.Copy(false, deep)
 }
 
 // MemberAddUpdate adds or updates a member
@@ -301,6 +324,22 @@ func copyPresence(in *discordgo.Presence) *discordgo.Presence {
 	return cop
 }
 
+// ChannelCopy returns a copy of a channel
+// Read actions are safe to do on the copy's slices, but not write actions
+func (g *GuildState) ChannelCopy(lock bool, id int64) *ChannelState {
+	if lock {
+		g.RLock()
+		defer g.RUnlock()
+	}
+
+	c := g.Channel(false, id)
+	if c == nil {
+		return nil
+	}
+
+	return c.Copy(false)
+}
+
 // Channel retrieves a channelstate by id
 func (g *GuildState) Channel(lock bool, id int64) *ChannelState {
 	if lock {
@@ -340,8 +379,24 @@ func (g *GuildState) ChannelRemove(lock bool, id int64) {
 	delete(g.Channels, id)
 }
 
+// Role returns a role by id, this is a strict copy
+func (g *GuildState) RoleCopy(lock bool, id int64) (discordgo.Role, bool) {
+	if lock {
+		g.RLock()
+		defer g.RUnlock()
+	}
+
+	for _, role := range g.Guild.Roles {
+		if role.ID == id {
+			return *role, true
+		}
+	}
+
+	return discordgo.Role{}, false
+}
+
 // Role returns a role by id
-func (g *GuildState) Role(lock bool, id int64) *discordgo.Role {
+func (g *GuildState) role(lock bool, id int64) *discordgo.Role {
 	if lock {
 		g.RLock()
 		defer g.RUnlock()
@@ -356,18 +411,30 @@ func (g *GuildState) Role(lock bool, id int64) *discordgo.Role {
 	return nil
 }
 
+func (g *GuildState) roleIndex(id int64) int {
+	for i, v := range g.Guild.Roles {
+		if v.ID == id {
+			return i
+		}
+	}
+
+	return -1
+}
+
 func (g *GuildState) RoleAddUpdate(lock bool, newRole *discordgo.Role) {
 	if lock {
 		g.Lock()
 		defer g.Unlock()
 	}
 
-	existing := g.Role(false, newRole.ID)
-	if existing != nil {
-		*existing = *newRole
+	rCop := *newRole
+
+	existingIndex := g.roleIndex(newRole.ID)
+
+	if existingIndex == -1 {
+		g.Guild.Roles = append(g.Guild.Roles, newRole)
 	} else {
-		rCop := *newRole
-		g.Guild.Roles = append(g.Guild.Roles, &rCop)
+		g.Guild.Roles[existingIndex] = &rCop
 	}
 }
 
@@ -377,12 +444,12 @@ func (g *GuildState) RoleRemove(lock bool, id int64) {
 		defer g.Unlock()
 	}
 
-	for i, v := range g.Guild.Roles {
-		if v.ID == id {
-			g.Guild.Roles = append(g.Guild.Roles[:i], g.Guild.Roles[i+1:]...)
-			return
-		}
+	index := g.roleIndex(id)
+	if index == -1 {
+		return
 	}
+
+	g.Guild.Roles = append(g.Guild.Roles[:index], g.Guild.Roles[index+1:]...)
 }
 
 func (g *GuildState) VoiceState(lock bool, userID int64) *discordgo.VoiceState {
@@ -400,32 +467,42 @@ func (g *GuildState) VoiceState(lock bool, userID int64) *discordgo.VoiceState {
 	return nil
 }
 
-func (g *GuildState) VoiceStateUpdate(lock bool, update *discordgo.VoiceStateUpdate) {
+func (g *GuildState) voiceStateIndex(userID int64) int {
+	for i, v := range g.Guild.VoiceStates {
+		if v.UserID == userID {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func (g *GuildState) VoiceStateUpdate(lock bool, update *discordgo.VoiceState) {
 	if lock {
 		g.Lock()
 		defer g.Unlock()
 	}
 
-	// Handle Leaving Channel
+	index := g.voiceStateIndex(update.UserID)
 	if update.ChannelID == 0 {
-		for i, state := range g.Guild.VoiceStates {
-			if state.UserID == update.UserID {
-				g.Guild.VoiceStates = append(g.Guild.VoiceStates[:i], g.Guild.VoiceStates[i+1:]...)
-				return
-			}
+		// left the channel
+		if index == -1 {
+			// was never in a channel?
+			return
 		}
-	}
 
-	existing := g.VoiceState(false, update.UserID)
-	if existing != nil {
-		*existing = *update.VoiceState
+		g.Guild.VoiceStates = append(g.Guild.VoiceStates[:index], g.Guild.VoiceStates[index+1:]...)
 		return
 	}
 
 	vsCopy := new(discordgo.VoiceState)
-	*vsCopy = *update.VoiceState
+	*vsCopy = *update
 
-	g.Guild.VoiceStates = append(g.Guild.VoiceStates, vsCopy)
+	if index != -1 {
+		g.Guild.VoiceStates[index] = vsCopy
+	} else {
+		g.Guild.VoiceStates = append(g.Guild.VoiceStates, vsCopy)
+	}
 
 	return
 }

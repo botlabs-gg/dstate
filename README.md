@@ -6,6 +6,19 @@ dstate is an alternative state tracker to the standard one in discordgo.
 
 It's a bit more advanced but offer more features and it's easier to avoid race conditions with.
 
+Concurrency safety:
+
+ - Individual Roles, VoiceStates, MessageStates are never modified, they are replaced completely, making them safe to be passed around everywhere.
+ - All slices in ChannelState is safe to read in ChannelState copies, but not write to, as the slices are replaced entirely when updates occur.
+ - Slices on guild requires a Deep copy to be safely read, lightCopy will nil them.
+ - To read properties on ChannelState, GuildState and MessageStates (beyond ID, GuildID, ChannelState.GS) you need to either acquire a read lock or a copy
+
+Balancing performance and usability is hard with state tracking, you basically have 2 options:
+ - Replace full state objects on every smaller update, then give out direct references when users request data from it. This is performant for data requests but heavy for state updates
+ - Update the state objects partially and return full copies when users request data. This is performant for state updates but *can* be heavy for data requests
+
+I chose a hybrid model, the smaller objects (Roles, VoiceStates) are replaced completely instead of partially updated,and GuildState, GuildState.Guild, MemberState ChannelState and MessageState is updated partially, because of the size and rate of them.
+
 Example:
 
 Retrieving a channel, and getting the name without data races
