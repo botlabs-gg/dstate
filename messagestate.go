@@ -2,6 +2,8 @@ package dstate
 
 import (
 	"github.com/jonas747/discordgo"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -103,7 +105,7 @@ func (m *MessageState) parseTimes(created, edited discordgo.Timestamp) {
 }
 
 // Copy returns a copy of the message, that can be used without further locking the owner
-func (m *MessageState) Copy(deep bool) *MessageState {
+func (m *MessageState) Copy() *MessageState {
 	cop := *m
 	return &cop
 }
@@ -134,4 +136,18 @@ func (m *MessageState) Update(msg *discordgo.Message) {
 
 func IsPrivate(t discordgo.ChannelType) bool {
 	return t == discordgo.ChannelTypeGroupDM || t == discordgo.ChannelTypeDM
+}
+
+// ContentWithMentionsReplaced will replace all @<id> mentions with the
+// username of the mention.
+func (m *MessageState) ContentWithMentionsReplaced() (content string) {
+	content = m.Content
+
+	for _, user := range m.Mentions {
+		content = strings.NewReplacer(
+			"<@"+strconv.FormatInt(user.ID, 10)+">", "@"+user.Username,
+			"<@!"+strconv.FormatInt(user.ID, 10)+">", "@"+user.Username,
+		).Replace(content)
+	}
+	return
 }

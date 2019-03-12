@@ -203,6 +203,22 @@ func (g *GuildState) MemberCopy(lock bool, id int64) *MemberState {
 	return m.Copy()
 }
 
+// MemberDGoCopy returns a full copy of a MemberState converted to a discordgo.Member struct
+// Warning: modifying slices in the state (such as roles) causes race conditions, they're only safe to access
+func (g *GuildState) MemberDGoCopy(lock bool, id int64) *discordgo.Member {
+	if lock {
+		g.RLock()
+		defer g.RUnlock()
+	}
+
+	m := g.Member(false, id)
+	if m == nil {
+		return nil
+	}
+
+	return m.DGoCopy()
+}
+
 // MemberAddUpdate adds or updates a member
 func (g *GuildState) MemberAddUpdate(lock bool, newMember *discordgo.Member) {
 	if lock {
@@ -380,7 +396,7 @@ func (g *GuildState) ChannelRemove(lock bool, id int64) {
 }
 
 // Role returns a role by id, this is a strict copy
-func (g *GuildState) RoleCopy(lock bool, id int64) (discordgo.Role, bool) {
+func (g *GuildState) RoleCopy(lock bool, id int64) *discordgo.Role {
 	if lock {
 		g.RLock()
 		defer g.RUnlock()
@@ -388,15 +404,16 @@ func (g *GuildState) RoleCopy(lock bool, id int64) (discordgo.Role, bool) {
 
 	for _, role := range g.Guild.Roles {
 		if role.ID == id {
-			return *role, true
+			cop := *role
+			return &cop
 		}
 	}
 
-	return discordgo.Role{}, false
+	return nil
 }
 
 // Role returns a role by id
-func (g *GuildState) role(lock bool, id int64) *discordgo.Role {
+func (g *GuildState) Role(lock bool, id int64) *discordgo.Role {
 	if lock {
 		g.RLock()
 		defer g.RUnlock()
@@ -676,4 +693,13 @@ func (g *GuildState) UserCacheFetch(lock bool, key interface{}, fetchFunc CacheF
 	}
 
 	return g.userCache.Fetch(key, fetchFunc)
+}
+
+func (g *GuildState) IsAvailable(lock bool) bool {
+	if lock {
+		g.RLock()
+		defer g.RUnlock()
+	}
+
+	return !g.Guild.Unavailable
 }

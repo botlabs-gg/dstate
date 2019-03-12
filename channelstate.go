@@ -155,8 +155,8 @@ func (c *ChannelState) Update(lock bool, newChannel *discordgo.Channel) {
 	c.ParentID = newChannel.ParentID
 }
 
-// Message returns a message by id or nil if none found
-// The only field safe to query on a message without locking the owner (guild or state) is ID
+// Message returns a message REFERENCE by id or nil if none found
+// The only field safe to query on a message reference without locking the owner (guild or state) is ID
 func (c *ChannelState) Message(lock bool, mID int64) *MessageState {
 	if lock {
 		c.Owner.RLock()
@@ -170,6 +170,21 @@ func (c *ChannelState) Message(lock bool, mID int64) *MessageState {
 	}
 
 	return c.Messages[index]
+}
+
+// MessageCopy returns a copy of the message specified by id, its safe to read all fields, but it's not safe to modify any
+func (c *ChannelState) MessageCopy(lock bool, mID int64) *MessageState {
+	if lock {
+		c.Owner.RLock()
+		defer c.Owner.RUnlock()
+	}
+
+	index := c.messageIndex(mID)
+	if index == -1 {
+		return nil
+	}
+
+	return c.Messages[index].Copy()
 }
 
 func (c *ChannelState) messageIndex(mID int64) int {
