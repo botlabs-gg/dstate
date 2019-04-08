@@ -73,7 +73,7 @@ func MSFromDGoMember(gs *GuildState, member *discordgo.Member) *MemberState {
 	discrim, _ := strconv.ParseInt(member.User.Discriminator, 10, 32)
 	ms.Discriminator = int32(discrim)
 
-	ms.JoinedAt, _ = time.Parse(time.RFC3339, member.JoinedAt)
+	ms.JoinedAt, _ = member.JoinedAt.Parse()
 
 	return ms
 }
@@ -86,7 +86,7 @@ func (m *MemberState) StrID() string {
 func (m *MemberState) UpdateMember(member *discordgo.Member) {
 	// Patch
 	if member.JoinedAt != "" {
-		parsed, _ := time.Parse(time.RFC3339, member.JoinedAt)
+		parsed, _ := member.JoinedAt.Parse()
 		m.JoinedAt = parsed
 	}
 
@@ -184,7 +184,7 @@ func (m *MemberState) DGoCopy() *discordgo.Member {
 		User:     m.DGoUser(),
 		Nick:     m.Nick,
 		Roles:    m.Roles,
-		JoinedAt: m.JoinedAt.Format(time.RFC3339),
+		JoinedAt: discordgo.Timestamp(m.JoinedAt.Format(time.RFC3339)),
 	}
 }
 
