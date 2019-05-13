@@ -28,7 +28,7 @@ type GuildState struct {
 	MaxMessageDuration   time.Duration // Max age of messages, if 0 ignored. (Only checks age whena new message is received on the channel)
 	RemoveOfflineMembers bool
 
-	userCache *Cache `json:"-"`
+	userCache *Cache
 }
 
 // NewGuildstate creates a new guild state, it only uses the passed state to get settings from

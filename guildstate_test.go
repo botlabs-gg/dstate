@@ -26,75 +26,75 @@ func TestGuildRoles(t *testing.T) {
 	}
 
 	// make sure they're correct
-	r1, found := gs.RoleCopy(true, 50)
+	r1 := gs.RoleCopy(true, 50)
 	if r1.ID != 50 {
-		t.Errorf("add: r1 incorrect: f:%t, %#v", found, r1)
+		t.Errorf("add: r1 incorrect: f:%#v", r1)
 		return
 	}
 
-	r2, found := gs.RoleCopy(true, 51)
+	r2 := gs.RoleCopy(true, 51)
 	if r2.ID != 51 {
-		t.Errorf("add: r2 incorrect: f:%t, %#v", found, r2)
+		t.Errorf("add: r2 incorrect: f:%#v", r2)
 		return
 	}
 
 	// test updating roles, r1
 	gs.RoleAddUpdate(true, &discordgo.Role{ID: 50, Name: "new name"})
 
-	r1, found = gs.RoleCopy(true, 50)
+	r1 = gs.RoleCopy(true, 50)
 	if r1.ID != 50 || r1.Name != "new name" {
-		t.Errorf("change p1: r1 incorrect: f:%t, %#v", found, r1)
+		t.Errorf("change p1: r1 incorrect: f:%#v", r1)
 		return
 	}
 
-	r2, found = gs.RoleCopy(true, 51)
+	r2 = gs.RoleCopy(true, 51)
 	if r2.ID != 51 || r2.Name != "t2" {
-		t.Errorf("change p1: r2 incorrect: f:%t, %#v", found, r2)
+		t.Errorf("change p1: r2 incorrect: f:%#v", r2)
 		return
 	}
 
 	// test updating roles, r2
 	gs.RoleAddUpdate(true, &discordgo.Role{ID: 51, Name: "new name2"})
 
-	r1, found = gs.RoleCopy(true, 50)
+	r1 = gs.RoleCopy(true, 50)
 	if r1.ID != 50 || r1.Name != "new name" {
-		t.Errorf("change p2: r1 incorrect: f:%t, %#v", found, r1)
+		t.Errorf("change p2: r1 incorrect: f:%#v", r1)
 		return
 	}
 
-	r2, found = gs.RoleCopy(true, 51)
+	r2 = gs.RoleCopy(true, 51)
 	if r2.ID != 51 || r2.Name != "new name2" {
-		t.Errorf("change p2: r2 incorrect: f:%t, %#v", found, r2)
+		t.Errorf("change p2: r2 incorrect: f:%#v", r2)
 		return
 	}
 
 	// test removing roles p1
 	gs.RoleRemove(true, 50)
 
-	r1, found = gs.RoleCopy(true, 50)
-	if found {
-		t.Errorf("del p1: r1 incorrect: f:%t, %#v", found, r1)
+	r1 = gs.RoleCopy(true, 50)
+	if r1 != nil {
+		t.Errorf("del p1: r1 incorrect: f:%#v", r1)
 		return
 	}
 
-	r2, found = gs.RoleCopy(true, 51)
+	r2 = gs.RoleCopy(true, 51)
 	if r2.ID != 51 || r2.Name != "new name2" {
-		t.Errorf("del p1: r2 incorrect: f:%t, %#v", found, r2)
+		t.Errorf("del p1: r2 incorrect: f:%#v", r2)
 		return
 	}
 
 	// test removing roles p2
 	gs.RoleRemove(true, 51)
 
-	r1, found = gs.RoleCopy(true, 50)
-	if found {
-		t.Errorf("del p1: r1 incorrect: f:%t, %#v", found, r1)
+	r1 = gs.RoleCopy(true, 50)
+	if r1 != nil {
+		t.Errorf("del p1: r1 incorrect: f:%#v", r1)
 		return
 	}
 
-	r2, found = gs.RoleCopy(true, 51)
-	if found {
-		t.Errorf("del p1: r2 incorrect: f:%t, %#v", found, r2)
+	r2 = gs.RoleCopy(true, 51)
+	if r2 != nil {
+		t.Errorf("del p1: r2 incorrect: f:%#v", r2)
 		return
 	}
 }
