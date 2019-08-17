@@ -19,6 +19,15 @@ const (
 	StatusOffline      PresenceStatus = 5
 )
 
+type LightGame struct {
+	Name    string `json:"name"`
+	URL     string `json:"url,omitempty"`
+	Details string `json:"details,omitempty"`
+	State   string `json:"state,omitempty"`
+
+	Type discordgo.GameType `json:"type"`
+}
+
 // MemberState represents the state of a member
 type MemberState struct {
 	Guild *GuildState `json:"-" msgpack:"-"`
@@ -36,8 +45,8 @@ type MemberState struct {
 	// A list of IDs of the roles which are possessed by the member.
 	Roles []int64 `json:"roles"`
 
-	PresenceStatus PresenceStatus  `json:"presence_status"`
-	PresenceGame   *discordgo.Game `json:"presence_game"`
+	PresenceStatus PresenceStatus `json:"presence_status"`
+	PresenceGame   *LightGame     `json:"presence_game"`
 
 	// The users username.
 	Username string `json:"username"`
@@ -106,7 +115,18 @@ func (m *MemberState) UpdateMember(member *discordgo.Member) {
 
 func (m *MemberState) UpdatePresence(presence *discordgo.Presence) {
 	m.PresenceSet = true
-	m.PresenceGame = presence.Game
+
+	if presence.Game == nil {
+		m.PresenceGame = nil
+	} else {
+		m.PresenceGame = &LightGame{
+			Name:    presence.Game.Name,
+			Details: presence.Game.Details,
+			URL:     presence.Game.URL,
+			State:   presence.Game.State,
+			Type:    presence.Game.Type,
+		}
+	}
 
 	if !m.MemberSet {
 		m.Nick = presence.Nick
