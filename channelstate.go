@@ -271,7 +271,7 @@ func (c *ChannelState) UpdateMessages(lock bool, maxMsgs int, maxAge time.Durati
 
 			// if we don't do this the messages wont be collected for garbage collection since they're still referenced by the underlying array
 			for j := 0; j <= i; j++ {
-				c.Messages[i] = nil
+				c.Messages[j] = nil
 			}
 
 			c.Messages = c.Messages[i+1:]
