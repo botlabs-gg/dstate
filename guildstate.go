@@ -226,6 +226,10 @@ func (g *GuildState) MemberAddUpdate(lock bool, newMember *discordgo.Member) {
 		defer g.Unlock()
 	}
 
+	if g.Members == nil {
+		panic("nil members")
+	}
+
 	existing, ok := g.Members[newMember.User.ID]
 	if ok {
 		existing.UpdateMember(newMember)
