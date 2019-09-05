@@ -28,7 +28,8 @@ type GuildState struct {
 	MaxMessageDuration   time.Duration // Max age of messages, if 0 ignored. (Only checks age whena new message is received on the channel)
 	RemoveOfflineMembers bool
 
-	userCache *Cache
+	userCache   *Cache
+	userCachemu sync.RWMutex
 }
 
 // NewGuildstate creates a new guild state, it only uses the passed state to get settings from
@@ -630,20 +631,18 @@ func (g *GuildState) MemberPermissionsMS(lock bool, channelID int64, mState *Mem
 }
 
 func (g *GuildState) runGC(cacheExpirey time.Duration) (cacheN int) {
-	g.Lock()
+	g.userCachemu.Lock()
 	if g.userCache != nil {
 		cacheN = g.userCache.EvictOldKeys(time.Now().Add(-cacheExpirey))
 	}
-	g.Unlock()
+	g.userCachemu.Unlock()
 
 	return
 }
 
-func (g *GuildState) UserCacheGet(lock bool, key interface{}) interface{} {
-	if lock {
-		g.RLock()
-		defer g.RUnlock()
-	}
+func (g *GuildState) UserCacheGet(key interface{}) interface{} {
+	g.userCachemu.RLock()
+	defer g.userCachemu.RUnlock()
 
 	if g.userCache == nil {
 		return nil
@@ -652,11 +651,9 @@ func (g *GuildState) UserCacheGet(lock bool, key interface{}) interface{} {
 	return g.userCache.Get(key)
 }
 
-func (g *GuildState) UserCacheSet(lock bool, key interface{}, value interface{}) {
-	if lock {
-		g.Lock()
-		defer g.Unlock()
-	}
+func (g *GuildState) UserCacheSet(key interface{}, value interface{}) {
+	g.userCachemu.Lock()
+	defer g.userCachemu.Unlock()
 
 	if g.userCache == nil {
 		g.userCache = NewCache()
@@ -665,11 +662,9 @@ func (g *GuildState) UserCacheSet(lock bool, key interface{}, value interface{})
 	g.userCache.Set(key, value)
 }
 
-func (g *GuildState) UserCacheDel(lock bool, key interface{}) {
-	if lock {
-		g.Lock()
-		defer g.Unlock()
-	}
+func (g *GuildState) UserCacheDel(key interface{}) {
+	g.userCachemu.Lock()
+	defer g.userCachemu.Unlock()
 
 	if g.userCache == nil {
 		g.userCache = NewCache()
@@ -679,18 +674,16 @@ func (g *GuildState) UserCacheDel(lock bool, key interface{}) {
 	g.userCache.Del(key)
 }
 
-func (g *GuildState) UserCacheFetch(lock bool, key interface{}, fetchFunc CacheFetchFunc) (interface{}, error) {
-	if lock {
-		// check fastpatch
-		v := g.UserCacheGet(true, key)
-		if v != nil {
-			return v, nil
-		}
-
-		// fast path failed, use full lock
-		g.Lock()
-		defer g.Unlock()
+func (g *GuildState) UserCacheFetch(key interface{}, fetchFunc CacheFetchFunc) (interface{}, error) {
+	// check fastpatch
+	v := g.UserCacheGet(key)
+	if v != nil {
+		return v, nil
 	}
+
+	// fast path failed, use full lock
+	g.userCachemu.Lock()
+	defer g.userCachemu.Unlock()
 
 	if g.userCache == nil {
 		g.userCache = NewCache()
