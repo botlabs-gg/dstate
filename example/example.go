@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/jonas747/discordgo"
-	"github.com/jonas747/dshardmanager"
+	"github.com/jonas747/jdshardmanager"
 	"github.com/jonas747/dstate"
 	"log"
 	"os"

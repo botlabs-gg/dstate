@@ -1,16 +1,21 @@
 package dstate
 
 import (
+	"sync/atomic"
 	"time"
 )
 
 type Cache struct {
-	store map[interface{}]*Bucket
+	store     map[interface{}]*Bucket
+	cacheHits *int64
+	cacheMiss *int64
 }
 
-func NewCache() *Cache {
+func NewCache(hit, miss *int64) *Cache {
 	return &Cache{
-		store: make(map[interface{}]*Bucket),
+		store:     make(map[interface{}]*Bucket),
+		cacheHits: hit,
+		cacheMiss: miss,
 	}
 }
 
@@ -53,9 +58,11 @@ type CacheFetchFunc func() (value interface{}, err error)
 func (c *Cache) Fetch(key interface{}, fetchFunc CacheFetchFunc) (interface{}, error) {
 	v := c.Get(key)
 	if v != nil {
+		atomic.AddInt64(c.cacheHits, 1)
 		return v, nil
 	}
 
+	atomic.AddInt64(c.cacheMiss, 1)
 	value, err := fetchFunc()
 	if err != nil {
 		return value, err

@@ -2,9 +2,10 @@ package dstate
 
 import (
 	"errors"
-	"github.com/jonas747/discordgo"
 	"sync"
 	"time"
+
+	"github.com/jonas747/discordgo"
 )
 
 var (
@@ -43,7 +44,7 @@ func NewGuildState(guild *discordgo.Guild, state *State) *GuildState {
 		Guild:     gCop,
 		Members:   make(map[int64]*MemberState),
 		Channels:  make(map[int64]*ChannelState),
-		userCache: NewCache(),
+		userCache: NewCache(state.cacheHits, state.cacheMiss),
 	}
 
 	if state != nil {
@@ -656,7 +657,7 @@ func (g *GuildState) UserCacheSet(key interface{}, value interface{}) {
 	defer g.userCachemu.Unlock()
 
 	if g.userCache == nil {
-		g.userCache = NewCache()
+		return
 	}
 
 	g.userCache.Set(key, value)
@@ -667,7 +668,6 @@ func (g *GuildState) UserCacheDel(key interface{}) {
 	defer g.userCachemu.Unlock()
 
 	if g.userCache == nil {
-		g.userCache = NewCache()
 		return // nothing to delete
 	}
 
@@ -686,7 +686,7 @@ func (g *GuildState) UserCacheFetch(key interface{}, fetchFunc CacheFetchFunc) (
 	defer g.userCachemu.Unlock()
 
 	if g.userCache == nil {
-		g.userCache = NewCache()
+		return nil, errors.New("No cache")
 	}
 
 	return g.userCache.Fetch(key, fetchFunc)

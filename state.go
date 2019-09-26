@@ -1,11 +1,13 @@
 package dstate
 
 import (
-	"github.com/jonas747/discordgo"
 	"log"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/jonas747/discordgo"
 )
 
 type State struct {
@@ -50,6 +52,10 @@ type State struct {
 
 	// How long guild user caches should be active
 	CacheExpirey time.Duration
+
+	// Cache statistics
+	cacheMiss *int64
+	cacheHits *int64
 }
 
 func NewState() *State {
@@ -67,6 +73,9 @@ func NewState() *State {
 		KeepDeletedMessages:  true,
 		ThrowAwayDMMessages:  true,
 		TrackMessages:        true,
+
+		cacheMiss: new(int64),
+		cacheHits: new(int64),
 
 		CacheExpirey: time.Minute,
 	}
@@ -543,6 +552,12 @@ func (s *State) GuildsSlice(lock bool) []*GuildState {
 	}
 
 	return dst
+}
+
+func (s *State) CacheStats() (hit, miss int64) {
+	hit = atomic.LoadInt64(s.cacheHits)
+	miss = atomic.LoadInt64(s.cacheMiss)
+	return
 }
 
 type RWLocker interface {
