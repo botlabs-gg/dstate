@@ -75,6 +75,11 @@ func NewGuildState(guild *discordgo.Guild, state *State) *GuildState {
 	return guildState
 }
 
+// InitCache intiializses the cache, assumes that g is locked
+func (g *GuildState) InitCache(state *State) {
+	g.userCache = NewCache(state.cacheHits, state.cacheMiss)
+}
+
 // StrID is the same as above but formats it in a string first
 func (g *GuildState) StrID() string {
 	return discordgo.StrID(g.ID)
