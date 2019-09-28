@@ -29,8 +29,7 @@ type GuildState struct {
 	MaxMessageDuration   time.Duration // Max age of messages, if 0 ignored. (Only checks age whena new message is received on the channel)
 	RemoveOfflineMembers bool
 
-	userCache   *Cache
-	userCachemu sync.RWMutex
+	userCache *Cache
 }
 
 // NewGuildstate creates a new guild state, it only uses the passed state to get settings from
@@ -637,19 +636,14 @@ func (g *GuildState) MemberPermissionsMS(lock bool, channelID int64, mState *Mem
 }
 
 func (g *GuildState) runGC(cacheExpirey time.Duration) (cacheN int) {
-	g.userCachemu.Lock()
 	if g.userCache != nil {
 		cacheN = g.userCache.EvictOldKeys(time.Now().Add(-cacheExpirey))
 	}
-	g.userCachemu.Unlock()
 
 	return
 }
 
 func (g *GuildState) UserCacheGet(key interface{}) interface{} {
-	g.userCachemu.RLock()
-	defer g.userCachemu.RUnlock()
-
 	if g.userCache == nil {
 		return nil
 	}
@@ -658,9 +652,6 @@ func (g *GuildState) UserCacheGet(key interface{}) interface{} {
 }
 
 func (g *GuildState) UserCacheSet(key interface{}, value interface{}) {
-	g.userCachemu.Lock()
-	defer g.userCachemu.Unlock()
-
 	if g.userCache == nil {
 		return
 	}
@@ -669,9 +660,6 @@ func (g *GuildState) UserCacheSet(key interface{}, value interface{}) {
 }
 
 func (g *GuildState) UserCacheDel(key interface{}) {
-	g.userCachemu.Lock()
-	defer g.userCachemu.Unlock()
-
 	if g.userCache == nil {
 		return // nothing to delete
 	}
@@ -680,16 +668,6 @@ func (g *GuildState) UserCacheDel(key interface{}) {
 }
 
 func (g *GuildState) UserCacheFetch(key interface{}, fetchFunc CacheFetchFunc) (interface{}, error) {
-	// check fastpatch
-	v := g.UserCacheGet(key)
-	if v != nil {
-		return v, nil
-	}
-
-	// fast path failed, use full lock
-	g.userCachemu.Lock()
-	defer g.userCachemu.Unlock()
-
 	if g.userCache == nil {
 		return nil, errors.New("No cache")
 	}
