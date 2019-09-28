@@ -643,6 +643,8 @@ func (g *GuildState) runGC(cacheExpirey time.Duration) (cacheN int) {
 	return
 }
 
+// UserCacheGet retrieves a item from the cache
+// Safe to call without locking GuildState as there's another lock managed by the cache internally
 func (g *GuildState) UserCacheGet(key interface{}) interface{} {
 	if g.userCache == nil {
 		return nil
@@ -651,6 +653,8 @@ func (g *GuildState) UserCacheGet(key interface{}) interface{} {
 	return g.userCache.Get(key)
 }
 
+// UserCacheSet stores an item in the cache
+// Safe to call without locking GuildState as there's another lock managed by the cache internally
 func (g *GuildState) UserCacheSet(key interface{}, value interface{}) {
 	if g.userCache == nil {
 		return
@@ -659,6 +663,8 @@ func (g *GuildState) UserCacheSet(key interface{}, value interface{}) {
 	g.userCache.Set(key, value)
 }
 
+// UserCacheDel deletes an item from the cache
+// Safe to call without locking GuildState as there's another lock managed by the cache internally
 func (g *GuildState) UserCacheDel(key interface{}) {
 	if g.userCache == nil {
 		return // nothing to delete
@@ -667,6 +673,8 @@ func (g *GuildState) UserCacheDel(key interface{}) {
 	g.userCache.Del(key)
 }
 
+// UserCacheFetch either retrieves an existing item from the cache or fetches one from the provided CacheFetchFunc
+// Safe to call without locking GuildState as there's another lock managed by the cache internally
 func (g *GuildState) UserCacheFetch(key interface{}, fetchFunc CacheFetchFunc) (interface{}, error) {
 	if g.userCache == nil {
 		return nil, errors.New("No cache")
@@ -675,6 +683,7 @@ func (g *GuildState) UserCacheFetch(key interface{}, fetchFunc CacheFetchFunc) (
 	return g.userCache.Fetch(key, fetchFunc)
 }
 
+// IsAvailable returns wether the guild is available or not (guild outages or starting up)
 func (g *GuildState) IsAvailable(lock bool) bool {
 	if lock {
 		g.RLock()
