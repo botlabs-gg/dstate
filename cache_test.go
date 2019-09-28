@@ -82,3 +82,70 @@ func TestCacheConcurrentSingleFetch(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestCachePanicRecovery(t *testing.T) {
+	c := newCache()
+
+	key := "123"
+
+	didFetch := new(int64)
+
+	fetchFunc := func() (interface{}, error) {
+		if !atomic.CompareAndSwapInt64(didFetch, 0, 1) {
+			return 2, nil
+		}
+
+		t.Log("Panicing")
+		panic("wew")
+		return 1, nil
+	}
+
+	fetchRecover(c, fetchFunc, key)
+
+	v, err := c.Fetch(key, fetchFunc)
+	if err != nil {
+		t.Log("Error fetching: ", err)
+	}
+
+	if v != 2 {
+		t.Log("Incorrect value")
+	}
+}
+
+func TestCachePanicRecoveryWaiting(t *testing.T) {
+	c := newCache()
+
+	key := "123"
+
+	didFetch := new(int64)
+
+	fetchFunc := func() (interface{}, error) {
+		if !atomic.CompareAndSwapInt64(didFetch, 0, 1) {
+			return 2, nil
+		}
+
+		time.Sleep(time.Second * 3)
+		t.Log("Panicing")
+		panic("wew")
+		return 1, nil
+	}
+
+	go fetchRecover(c, fetchFunc, key)
+	time.Sleep(time.Second)
+	v, err := c.Fetch(key, fetchFunc)
+	if err != nil {
+		t.Log("Error fetching: ", err)
+	}
+
+	if v != 2 {
+		t.Log("Incorrect value")
+	}
+}
+
+func fetchRecover(c *Cache, fetchFunc CacheFetchFunc, key string) (interface{}, error) {
+	defer func() {
+		recover()
+	}()
+
+	return c.Fetch(key, fetchFunc)
+}
