@@ -116,18 +116,28 @@ func (m *MemberState) UpdateMember(member *discordgo.Member) {
 func (m *MemberState) UpdatePresence(presence *discordgo.Presence) {
 	m.PresenceSet = true
 
-	if presence.Game == nil {
-		m.PresenceGame = nil
-	} else {
-		m.PresenceGame = &LightGame{
-			Name:    presence.Game.Name,
-			Details: presence.Game.Details,
-			URL:     presence.Game.URL,
-			State:   presence.Game.State,
-			Type:    presence.Game.Type,
+	// get the main activity
+	// it either gets the first one, or the one with typ 1 (streaming)
+	var mainActivity *discordgo.Game
+	for i, v := range presence.Activities {
+		if i == 0 || v.Type == 1 {
+			mainActivity = v
 		}
 	}
 
+	if mainActivity == nil {
+		m.PresenceGame = nil
+	} else {
+		m.PresenceGame = &LightGame{
+			Name:    mainActivity.Name,
+			Details: mainActivity.Details,
+			URL:     mainActivity.URL,
+			State:   mainActivity.State,
+			Type:    mainActivity.Type,
+		}
+	}
+
+	// update the rest
 	if !m.MemberSet {
 		m.Nick = presence.Nick
 	}
