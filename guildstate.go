@@ -25,11 +25,8 @@ type GuildState struct {
 	Members  map[int64]*MemberState  `json:"members"`
 	Channels map[int64]*ChannelState `json:"channels" `
 
-	MaxMessages          int           // Absolute max number of messages cached in a channel
-	MaxMessageDuration   time.Duration // Max age of messages, if 0 ignored. (Only checks age whena new message is received on the channel)
-	RemoveOfflineMembers bool
-
-	userCache *Cache
+	trackingConfig *TrackingConfig
+	userCache      *Cache
 }
 
 // NewGuildstate creates a new guild state, it only uses the passed state to get settings from
@@ -47,16 +44,16 @@ func NewGuildState(guild *discordgo.Guild, state *State) *GuildState {
 	}
 
 	if state != nil {
-		guildState.MaxMessages = state.MaxChannelMessages
-		guildState.MaxMessageDuration = state.MaxMessageAge
-		guildState.RemoveOfflineMembers = state.RemoveOfflineMembers
+		guildState.trackingConfig = state.TrackingConfig
+	} else {
+		guildState.trackingConfig = DefaultTrackingConfig()
 	}
 
 	for _, channel := range gCop.Channels {
 		guildState.ChannelAddUpdate(false, channel)
 	}
 
-	if state != nil && state.TrackMembers {
+	if state != nil && state.TrackingConfig.TrackMembers {
 		for _, member := range gCop.Members {
 			guildState.MemberAddUpdate(false, member)
 		}
@@ -313,7 +310,7 @@ func (g *GuildState) PresenceAddUpdate(lock bool, newPresence *discordgo.Presenc
 		g.Members[newPresence.User.ID] = ms
 	}
 
-	if newPresence.Status == discordgo.StatusOffline && g.RemoveOfflineMembers {
+	if newPresence.Status == discordgo.StatusOffline && g.trackingConfig.RemoveOfflineMembers {
 		// Remove after a minute incase they just restart the client or something
 		time.AfterFunc(time.Minute, func() {
 			g.Lock()

@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+type ChannelMeta struct {
+}
+
 // ChannelState represents a channel's state
 type ChannelState struct {
 	// These fields never change
@@ -125,6 +128,11 @@ func (c *ChannelState) Copy(lock bool) *ChannelState {
 
 	cop := new(ChannelState)
 	*cop = *c
+
+	if c.IsPrivate {
+		cop.Recipients = make([]*discordgo.User, len(c.Recipients))
+		copy(cop.Recipients, c.Recipients)
+	}
 
 	cop.Messages = nil
 	return cop
