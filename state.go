@@ -56,6 +56,9 @@ type State struct {
 	// Cache statistics
 	cacheMiss *int64
 	cacheHits *int64
+
+	lastCacheEvicted   int64
+	lastMembersEvicted int64
 }
 
 func NewState() *State {
@@ -506,6 +509,9 @@ func (s *State) RunGCWorker() {
 	}
 }
 
+// loop through all guilds in 10 minutes
+const GuildIterationTime = 60 * 10
+
 func (s *State) runGC() {
 	// just for safety
 	time.Sleep(time.Millisecond * 10)
@@ -519,25 +525,32 @@ func (s *State) runGC() {
 	s.RUnlock()
 
 	// Start chewing through em
-	// we sleep 10ms between each process, and make sure we've gotten through each guild in 60 seconds
-	processPerInterval := len(guilds) / (60 * 100)
+	// we sleep 100ms between each process, and make sure we've gotten through each guild in GuildIterationTime seconds
+	processPerInterval := len(guilds) / (GuildIterationTime * 10)
 	if processPerInterval < 1 {
 		processPerInterval = 1
 	}
 
 	processedNow := 0
 	evicted := 0
+	membersRemoved := 0
 	for _, g := range guilds {
 		processedNow++
 
 		if processedNow >= processPerInterval {
-			time.Sleep(time.Millisecond * 10)
+			time.Sleep(time.Millisecond * 100)
 			processedNow = 0
-			evicted = 0
 		}
 
-		evicted += g.runGC(s.CacheExpirey)
+		mr, ev := g.runGC(s.CacheExpirey, s.RemoveOfflineMembers)
+		evicted += ev
+		membersRemoved += mr
 	}
+
+	s.Lock()
+	s.lastCacheEvicted = int64(evicted)
+	s.lastMembersEvicted = int64(membersRemoved)
+	s.Unlock()
 }
 
 func (s *State) GuildsSlice(lock bool) []*GuildState {
@@ -554,10 +567,29 @@ func (s *State) GuildsSlice(lock bool) []*GuildState {
 	return dst
 }
 
+type StateStats struct {
+	CacheHits, CacheMisses  int64
+	UserCachceEvictedLastGC int64
+	MembersRemovedLastGC    int64
+}
+
 func (s *State) CacheStats() (hit, miss int64) {
 	hit = atomic.LoadInt64(s.cacheHits)
 	miss = atomic.LoadInt64(s.cacheMiss)
 	return
+}
+
+func (s *State) StateStats() *StateStats {
+	hits, misses := s.CacheStats()
+	s.RLock()
+	defer s.RUnlock()
+
+	return &StateStats{
+		CacheHits:               hits,
+		CacheMisses:             misses,
+		UserCachceEvictedLastGC: s.lastCacheEvicted,
+		MembersRemovedLastGC:    s.lastMembersEvicted,
+	}
 }
 
 type RWLocker interface {
