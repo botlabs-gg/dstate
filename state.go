@@ -16,43 +16,13 @@ type State struct {
 	r *discordgo.Ready
 
 	// All connected guilds
-	Guilds map[int64]*GuildState
-
-	// Global channel mapping for convenience
-	Channels        map[int64]*ChannelState
+	Guilds          map[int64]*GuildState
 	PrivateChannels map[int64]*ChannelState
 
-	// Absolute max number of messages stored per channel
-	MaxChannelMessages int
-
-	// Max duration of messages stored, ignored if 0
-	// (Messages gets checked when a new message in the channel comes in)
-	MaxMessageAge time.Duration
-
-	// Gives you the ability to grant conditional limits
-	CustomLimitProvider LimitProvider
-
-	TrackChannels        bool
-	TrackPrivateChannels bool // Dm's, group DM's etc
-	TrackMembers         bool
-	TrackRoles           bool
-	TrackVoice           bool
-	TrackPresences       bool
-	TrackMessages        bool
-	ThrowAwayDMMessages  bool // Don't track dm messages if set
-
-	// Removes offline members from the state, requires trackpresences
-	RemoveOfflineMembers bool
-
-	// Set to remove deleted messages from state
-	KeepDeletedMessages bool
+	TrackingConfig *TrackingConfig
 
 	// Enabled debug logging
 	Debug bool
-
-	// How long guild user caches should be active
-	CacheExpirey time.Duration
-
 	// Cache statistics
 	cacheMiss *int64
 	cacheHits *int64
@@ -61,23 +31,12 @@ type State struct {
 func NewState() *State {
 	return &State{
 		Guilds:          make(map[int64]*GuildState),
-		Channels:        make(map[int64]*ChannelState),
 		PrivateChannels: make(map[int64]*ChannelState),
 
-		TrackChannels:        true,
-		TrackPrivateChannels: true,
-		TrackMembers:         true,
-		TrackRoles:           true,
-		TrackVoice:           true,
-		TrackPresences:       true,
-		KeepDeletedMessages:  true,
-		ThrowAwayDMMessages:  true,
-		TrackMessages:        true,
+		TrackingConfig: DefaultTrackingConfig(),
 
 		cacheMiss: new(int64),
 		cacheHits: new(int64),
-
-		CacheExpirey: time.Minute,
 	}
 }
 
@@ -113,19 +72,32 @@ func (s *State) LightGuildCopy(lock bool, id int64) *discordgo.Guild {
 }
 
 // Channel returns a channelstate from id
-func (s *State) Channel(lock bool, id int64) *ChannelState {
+func (s *State) Channel(lock bool, gID int64, id int64) *ChannelState {
 	if lock {
 		s.RLock()
 		defer s.RUnlock()
 	}
 
-	return s.Channels[id]
+	g := s.Guild(lock, gID)
+	if g == nil {
+		return nil
+	}
+
+	return g.Channel(true, id)
 }
 
 // ChannelCopy returns a copy of a channel,
 // lock dictates wether state should be RLocked or not, channel will be locked regardless
 // All slices on the copy are safe to read, but not write to
 func (s *State) ChannelCopy(lock bool, id int64) *ChannelState {
+	if lock {
+		s.RLock()
+		defer s.RUnlock()
+	}
+
+	if g := s.Guilds[gID]; g != nil {
+		return g.ChannelCopy()
+	}
 
 	cState := s.Channel(lock, id)
 	if cState == nil {
@@ -558,15 +530,4 @@ func (s *State) CacheStats() (hit, miss int64) {
 	hit = atomic.LoadInt64(s.cacheHits)
 	miss = atomic.LoadInt64(s.cacheMiss)
 	return
-}
-
-type RWLocker interface {
-	RLock()
-	RUnlock()
-	Lock()
-	Unlock()
-}
-
-type LimitProvider interface {
-	MessageLimits(cs *ChannelState) (maxMessages int, maxMessageAge time.Duration)
 }
