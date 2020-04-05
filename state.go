@@ -57,8 +57,8 @@ type State struct {
 	cacheMiss *int64
 	cacheHits *int64
 
-	lastCacheEvicted   int64
-	lastMembersEvicted int64
+	cacheEvictedTotal   int64
+	membersEvictedTotal int64
 }
 
 func NewState() *State {
@@ -548,8 +548,8 @@ func (s *State) runGC() {
 	}
 
 	s.Lock()
-	s.lastCacheEvicted = int64(evicted)
-	s.lastMembersEvicted = int64(membersRemoved)
+	s.cacheEvictedTotal += int64(evicted)
+	s.membersEvictedTotal += int64(membersRemoved)
 	s.Unlock()
 }
 
@@ -568,9 +568,9 @@ func (s *State) GuildsSlice(lock bool) []*GuildState {
 }
 
 type StateStats struct {
-	CacheHits, CacheMisses  int64
-	UserCachceEvictedLastGC int64
-	MembersRemovedLastGC    int64
+	CacheHits, CacheMisses int64
+	UserCachceEvictedTotal int64
+	MembersRemovedTotal    int64
 }
 
 func (s *State) CacheStats() (hit, miss int64) {
@@ -585,10 +585,10 @@ func (s *State) StateStats() *StateStats {
 	defer s.RUnlock()
 
 	return &StateStats{
-		CacheHits:               hits,
-		CacheMisses:             misses,
-		UserCachceEvictedLastGC: s.lastCacheEvicted,
-		MembersRemovedLastGC:    s.lastMembersEvicted,
+		CacheHits:              hits,
+		CacheMisses:            misses,
+		UserCachceEvictedTotal: s.cacheEvictedTotal,
+		MembersRemovedTotal:    s.membersEvictedTotal,
 	}
 }
 
