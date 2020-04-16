@@ -312,21 +312,6 @@ func (g *GuildState) PresenceAddUpdate(lock bool, newPresence *discordgo.Presenc
 		ms.UpdatePresence(newPresence)
 		g.Members[newPresence.User.ID] = ms
 	}
-
-	if newPresence.Status == discordgo.StatusOffline && g.RemoveOfflineMembers {
-		// Remove after a minute incase they just restart the client or something
-		time.AfterFunc(time.Minute, func() {
-			g.Lock()
-			defer g.Unlock()
-
-			member := g.Member(false, newPresence.User.ID)
-			if member != nil {
-				if !member.PresenceSet || member.PresenceStatus == StatusOffline {
-					delete(g.Members, newPresence.User.ID)
-				}
-			}
-		})
-	}
 }
 
 func copyPresence(in *discordgo.Presence) *discordgo.Presence {
