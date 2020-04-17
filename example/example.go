@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/jonas747/discordgo"
 	"github.com/jonas747/jdshardmanager"
-	"github.com/jonas747/dstate"
+	"github.com/DevKurka/dstate"
 	"log"
 	"os"
 	"runtime"
