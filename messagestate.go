@@ -22,6 +22,9 @@ type MessageState struct {
 	// The content of the message.
 	Content string `json:"content"`
 
+	// The old content of the message.
+	OldContent string `json:"content"`
+
 	// The roles mentioned in the message.
 	MentionRoles []int64 `json:"mention_roles"`
 
@@ -113,6 +116,7 @@ func (m *MessageState) Copy() *MessageState {
 func (m *MessageState) Update(msg *discordgo.Message) {
 	// Patch the m message
 	if msg.Content != "" {
+		m.OldContent = m.Content
 		m.Content = msg.Content
 	}
 	if msg.Mentions != nil {
