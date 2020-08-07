@@ -679,6 +679,15 @@ func (g *GuildState) UserCacheFetch(key interface{}, fetchFunc CacheFetchFunc) (
 	return g.userCache.Fetch(key, fetchFunc)
 }
 
+// UserCacheDellAllKeysType deletes all keys of the provided type
+func (g *GuildState) UserCacheDellAllKeysType(key interface{}) {
+	if g.userCache == nil {
+		return
+	}
+
+	g.userCache.DelAllKeysType(key)
+}
+
 // IsAvailable returns wether the guild is available or not (guild outages or starting up)
 func (g *GuildState) IsAvailable(lock bool) bool {
 	if lock {
