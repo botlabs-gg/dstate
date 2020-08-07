@@ -1,12 +1,18 @@
 package dstate
 
 import (
-	"github.com/jonas747/discordgo"
 	"testing"
+
+	"github.com/jonas747/discordgo"
 )
 
+func createTestGS() *GuildState {
+	state := NewState()
+	return NewGuildState(createTestGuild(1, 2), state)
+}
+
 func TestGuildRoles(t *testing.T) {
-	gs := NewGuildState(createTestGuild(1, 2), nil)
+	gs := createTestGS()
 
 	// Test adding roles
 	preLen := len(gs.Guild.Roles)
@@ -100,7 +106,7 @@ func TestGuildRoles(t *testing.T) {
 }
 
 func TestGuildVoiceStates(t *testing.T) {
-	gs := NewGuildState(createTestGuild(1, 2), nil)
+	gs := createTestGS()
 
 	// Test adding roles
 	preLen := len(gs.Guild.VoiceStates)
