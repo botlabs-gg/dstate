@@ -149,3 +149,33 @@ func fetchRecover(c *Cache, fetchFunc CacheFetchFunc, key string) (interface{}, 
 
 	return c.Fetch(key, fetchFunc)
 }
+
+type AT int
+type BT int
+
+func TestCacheDelAllType(t *testing.T) {
+	a1 := AT(1)
+	a2 := AT(2)
+	b1 := BT(1)
+
+	c := newCache()
+
+	c.Set(a1, 1)
+	c.Set(a2, 1)
+	c.Set(b1, 1)
+	c.Set(1, 1)
+
+	c.DelAllKeysType(a1)
+
+	if c.Get(a1) != nil || c.Get(a2) != nil {
+		t.Error("Should have been removed from cache")
+	}
+
+	if c.Get(b1) == nil {
+		t.Error("Should still exist in cache")
+	}
+
+	if c.Get(1) == nil {
+		t.Error("Should still exist in cache")
+	}
+}

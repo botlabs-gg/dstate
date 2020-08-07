@@ -1,6 +1,7 @@
 package dstate
 
 import (
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,7 +31,7 @@ type bucket struct {
 	Fetching bool
 }
 
-// Get retrieves an item from the cache, this does not mutate anything and is safe to use with a read lock
+// Get retrieves an item from the cache, or nil if non-existing
 func (c *Cache) Get(key interface{}) interface{} {
 	c.cond.L.Lock()
 	defer c.cond.L.Unlock()
@@ -72,6 +73,21 @@ func (c *Cache) Del(key interface{}) {
 	defer c.cond.L.Unlock()
 
 	delete(c.store, key)
+}
+
+// DelAllKeysType deletes all keys that are of a specific type
+func (c *Cache) DelAllKeysType(t interface{}) {
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
+
+	typ := reflect.TypeOf(t)
+
+	for k := range c.store {
+		vt := reflect.TypeOf(k)
+		if typ == vt {
+			delete(c.store, k)
+		}
+	}
 }
 
 type CacheFetchFunc func() (value interface{}, err error)
