@@ -573,6 +573,7 @@ type StateStats struct {
 	CacheHits, CacheMisses int64
 	UserCachceEvictedTotal int64
 	MembersRemovedTotal    int64
+	MessagesRemovedTotal   int64
 }
 
 func (s *State) CacheStats() (hit, miss int64) {
@@ -591,6 +592,7 @@ func (s *State) StateStats() *StateStats {
 		CacheMisses:            misses,
 		UserCachceEvictedTotal: s.cacheEvictedTotal,
 		MembersRemovedTotal:    s.membersEvictedTotal,
+		MessagesRemovedTotal:   s.messagesRemovedTotal,
 	}
 }
 
