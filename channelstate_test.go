@@ -28,146 +28,122 @@ func createMockCS(numMessages int) *ChannelState {
 	return cs
 }
 
-func TestChannelStateMaxMessages(t *testing.T) {
-	cs := createMockCS(10)
+func TestClearMessageBuffer(t *testing.T) {
+	// test snowflakes: (2nd Sept. 2020)
+	const flake3_21 = 750737145026707626 // 3:21 PM UTC
+	const flake3_23 = 750737719482777743 // 3:23 PM UTC
+	const flake3_28 = 750738872790679623 // 3:28 PM UTC
+	const flake3_35 = 750740730032422992 // 3:35 PM UTC
 
-	cs.UpdateMessages(true, 5, time.Time{})
-
-	if len(cs.Messages) != 5 {
-		t.Errorf("Len is %d but expected %d", len(cs.Messages), 5)
+	cases := []struct {
+		name           string
+		snowflakes     []int64
+		maxMessageAge  time.Duration
+		refTime        time.Time
+		maxMessages    int
+		expectedResult []int64
+	}{
+		{
+			name: "max-messages-1",
+			snowflakes: []int64{
+				1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+			},
+			maxMessages: 5,
+			expectedResult: []int64{
+				6, 7, 8, 9, 10,
+			},
+		},
+		{
+			name: "max-messages-2",
+			snowflakes: []int64{
+				1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+			},
+			maxMessages: 10,
+			expectedResult: []int64{
+				1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+			},
+		},
+		{
+			name: "max-message-age-1",
+			snowflakes: []int64{
+				flake3_21,
+				flake3_23,
+				flake3_28,
+				flake3_35,
+			},
+			maxMessages:   10,
+			maxMessageAge: time.Minute * 10,
+			refTime:       createTestClearMessageBufferT(15, 37),
+			expectedResult: []int64{
+				flake3_28,
+				flake3_35,
+			},
+		},
+		{
+			name: "max-message-age-2",
+			snowflakes: []int64{
+				flake3_21,
+				flake3_23,
+				flake3_28,
+				flake3_35,
+			},
+			maxMessages:    10,
+			maxMessageAge:  time.Minute * 10,
+			refTime:        createTestClearMessageBufferT(16, 0),
+			expectedResult: []int64{},
+		},
+		{
+			name: "both-1",
+			snowflakes: []int64{
+				flake3_21,
+				flake3_23,
+				flake3_28,
+				flake3_35,
+			},
+			maxMessages:   3,
+			maxMessageAge: time.Minute * 10,
+			refTime:       createTestClearMessageBufferT(15, 37),
+			expectedResult: []int64{
+				flake3_28,
+				flake3_35,
+			},
+		},
 	}
 
-	for i, v := range cs.Messages {
-		if v == nil {
-			t.Errorf("Index %d is nil!", i)
-		}
-	}
-}
+	for _, v := range cases {
+		t.Run(v.name, func(t *testing.T) {
+			// create fake message states
+			fakeInput := make([]*MessageState, len(v.snowflakes))
+			for j, sf := range v.snowflakes {
+				fakeInput[j] = &MessageState{
+					ID: sf,
+				}
+			}
 
-func TestChannelStateMaxMessages2(t *testing.T) {
-	cs := createMockCS(10)
+			output, _ := clearMessageBuffer(fakeInput, v.refTime, v.maxMessageAge, v.maxMessages)
+			// create a intslice thats easier to print from the result
+			intSlice := make([]int64, len(output))
+			for j, ms := range output {
+				intSlice[j] = ms.ID
+			}
 
-	cs.UpdateMessages(true, 10, time.Time{})
+			if len(output) != len(v.expectedResult) {
+				t.Errorf("Mismatched output lengths (%d vs expected %d) expected: %v, got %v", len(output), len(v.expectedResult), v.expectedResult, intSlice)
+				return
+			}
 
-	if len(cs.Messages) != 10 {
-		t.Errorf("Len is %d but expected %d", len(cs.Messages), 10)
-	}
-
-	for i, v := range cs.Messages {
-		if v == nil {
-			t.Errorf("Index %d is nil!", i)
-		}
-	}
-}
-
-func TestChannelStateMaxMessages3(t *testing.T) {
-	cs := createMockCS(10)
-
-	cs.UpdateMessages(true, 0, time.Time{})
-
-	if len(cs.Messages) != 0 {
-		t.Errorf("Len is %d but expected %d", len(cs.Messages), 0)
-	}
-
-	for i, v := range cs.Messages {
-		if v == nil {
-			t.Errorf("Index %d is nil!", i)
-		}
-	}
-}
-
-func TestChannelStateMaxMessages4(t *testing.T) {
-	cs := createMockCS(10)
-
-	cs.UpdateMessages(true, 1, time.Time{})
-
-	if len(cs.Messages) != 1 {
-		t.Errorf("Len is %d but expected %d", len(cs.Messages), 1)
-	}
-
-	for i, v := range cs.Messages {
-		if v == nil {
-			t.Errorf("Index %d is nil!", i)
-		}
-	}
-}
-
-func TestChannelStateMaxMessageAge(t *testing.T) {
-	cs := createMockCS(10)
-
-	cs.UpdateMessages(true, -1, ReferenceTime.Add(time.Minute*2))
-
-	if len(cs.Messages) != 8 {
-		t.Errorf("Len is %d but expected %d", len(cs.Messages), 8)
-	}
-
-	for i, v := range cs.Messages {
-		if v == nil {
-			t.Errorf("Index %d is nil!", i)
-		}
-	}
-}
-
-func TestChannelStateMaxMessageAge2(t *testing.T) {
-	cs := createMockCS(10)
-
-	cs.UpdateMessages(true, -1, ReferenceTime.Add(time.Minute*20))
-
-	if len(cs.Messages) != 0 {
-		t.Errorf("Len is %d but expected %d", len(cs.Messages), 0)
-	}
-
-	for i, v := range cs.Messages {
-		if v == nil {
-			t.Errorf("Index %d is nil!", i)
-		}
-	}
-}
-
-func TestChannelStateMaxMessageAge3(t *testing.T) {
-	cs := createMockCS(10)
-
-	cs.UpdateMessages(true, -1, ReferenceTime.Add(time.Minute*9))
-
-	if len(cs.Messages) != 1 {
-		t.Errorf("Len is %d but expected %d", len(cs.Messages), 1)
-	}
-
-	for i, v := range cs.Messages {
-		if v == nil {
-			t.Errorf("Index %d is nil!", i)
-		}
-	}
-}
-
-func TestChannelStateMessagesCombined(t *testing.T) {
-	cs := createMockCS(10)
-
-	cs.UpdateMessages(true, 5, ReferenceTime.Add(time.Minute*2))
-
-	if len(cs.Messages) != 5 {
-		t.Errorf("Len is %d but expected %d", len(cs.Messages), 5)
-	}
-
-	for i, v := range cs.Messages {
-		if v == nil {
-			t.Errorf("Index %d is nil!", i)
-		}
+			// compare the full result content
+			for j, id := range intSlice {
+				if v.expectedResult[j] != id {
+					t.Errorf("Unexpected output, expected: %v, got %v", v.expectedResult, intSlice)
+					return
+				}
+			}
+		})
 	}
 }
 
-func TestChannelStateMessagesCombined2(t *testing.T) {
-	cs := createMockCS(10)
-
-	cs.UpdateMessages(true, 5, ReferenceTime.Add(time.Minute*8))
-
-	if len(cs.Messages) != 2 {
-		t.Errorf("Len is %d but expected %d", len(cs.Messages), 2)
-	}
-
-	for i, v := range cs.Messages {
-		if v == nil {
-			t.Errorf("Index %d is nil!", i)
-		}
-	}
+func createTestClearMessageBufferT(hour, min int) time.Time {
+	t := time.Date(2020, time.September, 2, hour, min, 0, 0, time.UTC)
+	return t
 }

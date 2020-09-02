@@ -1,8 +1,9 @@
 package dstate
 
 import (
-	"github.com/jonas747/discordgo"
 	"time"
+
+	"github.com/jonas747/discordgo"
 )
 
 // ChannelState represents a channel's state
@@ -28,7 +29,7 @@ type ChannelState struct {
 	Recipients []*discordgo.User `json:"recipients"`
 
 	// Accessing the channel without locking the owner yields undefined behaviour
-	Messages []*MessageState `json:"messages"`
+	Messages []*MessageState `json:"messages" msgpack:"-"`
 
 	// The last message edit we didn't have the original message tracked for
 	// we don't put those in the state because the ordering would be messed up
@@ -199,7 +200,7 @@ func (c *ChannelState) messageIndex(mID int64) int {
 }
 
 // MessageAddUpdate adds or updates an existing message
-func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, maxMessages int, maxMessageAge time.Duration, edit bool, updateMessages bool) {
+func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, edit bool) {
 	if lock {
 		c.Owner.Lock()
 		defer c.Owner.Unlock()
@@ -224,58 +225,7 @@ func (c *ChannelState) MessageAddUpdate(lock bool, msg *discordgo.Message, maxMe
 		c.LastUnknownMsgEdit = nil
 	}
 
-	if maxMessageAge > 0 && time.Since(ms.ParsedCreated) > maxMessageAge {
-		// Message was old so don't bother with it
-		return
-	}
-
 	c.Messages = append(c.Messages, ms)
-
-	if updateMessages {
-		c.UpdateMessages(false, maxMessages, time.Now().Add(-maxMessageAge))
-	}
-}
-
-// UpdateMessages checks the messages to make sure they fit max message age and max messages
-func (c *ChannelState) UpdateMessages(lock bool, maxMsgs int, deleteBefore time.Time) {
-	if lock {
-		c.Owner.Lock()
-		defer c.Owner.Unlock()
-	}
-
-	if len(c.Messages) > maxMsgs && maxMsgs != -1 {
-		for i := 0; i < len(c.Messages)-maxMsgs; i++ {
-			c.Messages[i] = nil
-		}
-		c.Messages = c.Messages[len(c.Messages)-maxMsgs:]
-	}
-
-	// Check age
-	if deleteBefore.IsZero() {
-		return
-	}
-
-	// Iterate reverse, new messages are at the end of the slice so iterate until we hit the first old message
-	for i := len(c.Messages) - 1; i >= 0; i-- {
-		m := c.Messages[i]
-
-		ts := m.ParsedCreated
-		if ts.IsZero() {
-			continue
-		}
-
-		if ts.Before(deleteBefore) {
-			// All messages before this is old aswell
-
-			// if we don't do this the messages wont be collected for garbage collection since they're still referenced by the underlying array
-			for j := 0; j <= i; j++ {
-				c.Messages[j] = nil
-			}
-
-			c.Messages = c.Messages[i+1:]
-			break
-		}
-	}
 }
 
 // MessageRemove removes a message from the channelstate
@@ -296,4 +246,45 @@ func (c *ChannelState) MessageRemove(lock bool, messageID int64, mark bool) {
 			return
 		}
 	}
+}
+
+const DiscordEpoch = 1420070400000
+
+// assumes the owner is locked when ran
+func (c *ChannelState) runGC(t time.Time, maxMessageAge time.Duration, maxMessages int) (messagesRemoved int) {
+	c.Messages, messagesRemoved = clearMessageBuffer(c.Messages, t, maxMessageAge, maxMessages)
+	return messagesRemoved
+}
+
+func clearMessageBuffer(buf []*MessageState, t time.Time, maxMessageAge time.Duration, maxMessages int) (newMessageBuffer []*MessageState, messagesRemoved int) {
+	// check basic max message limit first
+	if maxMessages > 0 && len(buf) > maxMessages {
+		messagesRemoved += len(buf) - maxMessages
+		buf = buf[len(buf)-maxMessages:]
+	}
+
+	if maxMessageAge < 1 || len(buf) < 1 {
+		// nothing more to do....
+		return buf, messagesRemoved
+	}
+
+	// create a fake snowflake for comparing the message timestamps with fast
+	fakeSnowflake := ((t.Add(-maxMessageAge).Unix() * 1000) - DiscordEpoch) << 22
+	if buf[0].ID > fakeSnowflake {
+		// fast path in case even the oldest message tracked is within max age, do nothing
+		return buf, messagesRemoved
+	}
+
+	// Iterate reverse, new messages are at the end of the slice so iterate until we hit the first old message
+	for i := len(buf) - 1; i >= 0; i-- {
+		if buf[i].ID < fakeSnowflake {
+			// older than the limit
+			// all messages before this is old aswell
+			messagesRemoved += i + 1
+			buf = buf[i+1:]
+			break
+		}
+	}
+
+	return buf, messagesRemoved
 }

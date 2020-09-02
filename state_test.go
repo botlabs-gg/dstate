@@ -2,8 +2,10 @@ package dstate
 
 import (
 	"fmt"
-	"github.com/jonas747/discordgo"
 	"testing"
+	"time"
+
+	"github.com/jonas747/discordgo"
 )
 
 var testState *State
@@ -176,6 +178,8 @@ func TestMessageCreate(t *testing.T) {
 			Message: createTestMessage(302+int64(i), 200, "HHeyyy"),
 		})
 	}
+
+	cs.runGC(time.Now(), 0, 100)
 
 	if len(cs.Messages) != 100 {
 		t.Fatal("Length of messages not 100:", len(cs.Messages))

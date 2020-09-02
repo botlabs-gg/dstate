@@ -57,8 +57,9 @@ type State struct {
 	cacheMiss *int64
 	cacheHits *int64
 
-	cacheEvictedTotal   int64
-	membersEvictedTotal int64
+	cacheEvictedTotal    int64
+	membersEvictedTotal  int64
+	messagesRemovedTotal int64
 }
 
 func NewState() *State {
@@ -415,13 +416,7 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 			return
 		}
 
-		maxMessages := s.MaxChannelMessages
-		maxMessageAge := s.MaxMessageAge
-		if !channel.IsPrivate && s.CustomLimitProvider != nil {
-			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(channel)
-		}
-
-		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge, false, true)
+		channel.MessageAddUpdate(true, evt.Message, false)
 	case *discordgo.MessageUpdate:
 		if !s.TrackMessages {
 			return
@@ -435,13 +430,7 @@ func (s *State) HandleEvent(session *discordgo.Session, i interface{}) {
 			return
 		}
 
-		maxMessages := s.MaxChannelMessages
-		maxMessageAge := s.MaxMessageAge
-		if !channel.IsPrivate && s.CustomLimitProvider != nil {
-			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(channel)
-		}
-
-		channel.MessageAddUpdate(true, evt.Message, maxMessages, maxMessageAge, true, true)
+		channel.MessageAddUpdate(true, evt.Message, true)
 	case *discordgo.MessageDelete:
 		if !s.TrackMessages {
 			return
@@ -538,6 +527,7 @@ func (s *State) runGC() {
 	processedNow := 0
 	evicted := 0
 	membersRemoved := 0
+	messagesRemoved := 0
 	for _, g := range guilds {
 		processedNow++
 
@@ -546,14 +536,22 @@ func (s *State) runGC() {
 			processedNow = 0
 		}
 
-		mr, ev := g.runGC(s.CacheExpirey, s.RemoveOfflineMembers)
+		maxMessages := s.MaxChannelMessages
+		maxMessageAge := s.MaxMessageAge
+		if s.CustomLimitProvider != nil {
+			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(g)
+		}
+
+		mr, ev, msgR := g.runGC(s.CacheExpirey, s.RemoveOfflineMembers, maxMessages, maxMessageAge)
 		evicted += ev
 		membersRemoved += mr
+		messagesRemoved += msgR
 	}
 
 	s.Lock()
 	s.cacheEvictedTotal += int64(evicted)
 	s.membersEvictedTotal += int64(membersRemoved)
+	s.messagesRemovedTotal += int64(messagesRemoved)
 	s.Unlock()
 }
 
@@ -604,5 +602,5 @@ type RWLocker interface {
 }
 
 type LimitProvider interface {
-	MessageLimits(cs *ChannelState) (maxMessages int, maxMessageAge time.Duration)
+	MessageLimits(gs *GuildState) (maxMessages int, maxMessageAge time.Duration)
 }
