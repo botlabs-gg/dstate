@@ -502,8 +502,8 @@ func (s *State) RunGCWorker() {
 	}
 }
 
-// loop through all guilds in 10 minutes
-const GuildIterationTime = 60 * 10
+// GuildIterationTime is how many seconds GC should *roughly* take to go gc all guilds
+var GuildIterationTime = 60 * 30
 
 func (s *State) runGC() {
 	// just for safety
