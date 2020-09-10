@@ -265,6 +265,9 @@ func clearMessageBuffer(buf []*MessageState, t time.Time, maxMessageAge time.Dur
 
 	if maxMessageAge < 1 || len(buf) < 1 {
 		// nothing more to do....
+		if len(buf) < 1 {
+			buf = nil
+		}
 		return buf, messagesRemoved
 	}
 
