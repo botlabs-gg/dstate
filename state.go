@@ -51,7 +51,7 @@ type State struct {
 	Debug bool
 
 	// How long guild user caches should be active
-	CacheExpirey time.Duration
+	CacheExpiry time.Duration
 
 	// Cache statistics
 	cacheMiss *int64
@@ -81,7 +81,7 @@ func NewState() *State {
 		cacheMiss: new(int64),
 		cacheHits: new(int64),
 
-		CacheExpirey: time.Minute,
+		CacheExpiry: time.Minute,
 	}
 }
 
@@ -542,7 +542,7 @@ func (s *State) runGC() {
 			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(g)
 		}
 
-		mr, ev, msgR := g.runGC(s.CacheExpirey, s.RemoveOfflineMembers, maxMessages, maxMessageAge)
+		mr, ev, msgR := g.runGC(s.CacheExpiry, s.RemoveOfflineMembers, maxMessages, maxMessageAge)
 		evicted += ev
 		membersRemoved += mr
 		messagesRemoved += msgR

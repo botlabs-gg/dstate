@@ -620,9 +620,9 @@ func (g *GuildState) MemberPermissionsMS(lock bool, channelID int64, mState *Mem
 	return
 }
 
-func (g *GuildState) runGC(cacheExpirey time.Duration, offlineMembers bool, maxMessages int, maxMessageDuration time.Duration) (membersEvicted int, cacheN int, messagesRemoved int) {
+func (g *GuildState) runGC(cacheExpiry time.Duration, offlineMembers bool, maxMessages int, maxMessageDuration time.Duration) (membersEvicted int, cacheN int, messagesRemoved int) {
 	if g.userCache != nil {
-		cacheN = g.userCache.EvictOldKeys(time.Now().Add(-cacheExpirey))
+		cacheN = g.userCache.EvictOldKeys(time.Now().Add(-cacheExpiry))
 	}
 
 	g.Lock()

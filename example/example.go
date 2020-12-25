@@ -19,7 +19,7 @@ func main() {
 	state.MaxMessageAge = time.Hour
 	state.ThrowAwayDMMessages = true
 	state.TrackPrivateChannels = false
-	state.CacheExpirey = time.Minute * 10
+	state.CacheExpiry = time.Minute * 10
 
 	sm := dshardmanager.New(os.Getenv("DG_TOKEN"))
 	sm.AddHandler(state.HandleEvent)
