@@ -66,9 +66,12 @@ func NewGuildState(guild *discordgo.Guild, state *State) *GuildState {
 		}
 	}
 
+	if state != nil && !state.TrackEmojis {
+		gCop.Emojis = nil
+	}
+
 	gCop.Presences = nil
 	gCop.Members = nil
-	gCop.Emojis = nil
 	gCop.Channels = nil
 
 	return guildState
@@ -517,6 +520,15 @@ func (g *GuildState) VoiceStateUpdate(lock bool, update *discordgo.VoiceState) {
 	}
 
 	return
+}
+
+func (g *GuildState) EmojisUpdate(lock bool, emojis []*discordgo.Emoji) {
+	if lock {
+		g.Lock()
+		defer g.Unlock()
+	}
+
+	g.Guild.Emojis = emojis
 }
 
 // Calculates the permissions for a member.
