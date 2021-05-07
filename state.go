@@ -517,12 +517,19 @@ func (s *State) RunGCWorker() {
 var GuildIterationTime = 60 * 30
 
 func (s *State) runGC() {
+
 	// just for safety
 	time.Sleep(time.Millisecond * 10)
 
 	// Get a copy of all the guild states, that way we dont need to keep the main guild store locked
 	guilds := make([]*GuildState, 0, 1000)
 	s.RLock()
+
+	botID := int64(0)
+	if s.r != nil {
+		botID = s.r.User.ID
+	}
+
 	for _, v := range s.Guilds {
 		guilds = append(guilds, v)
 	}
@@ -553,7 +560,7 @@ func (s *State) runGC() {
 			maxMessages, maxMessageAge = s.CustomLimitProvider.MessageLimits(g)
 		}
 
-		mr, ev, msgR := g.runGC(s.CacheExpirey, s.RemoveOfflineMembers, maxMessages, maxMessageAge)
+		mr, ev, msgR := g.runGC(s.CacheExpirey, s.RemoveOfflineMembers, maxMessages, maxMessageAge, botID)
 		evicted += ev
 		membersRemoved += mr
 		messagesRemoved += msgR
