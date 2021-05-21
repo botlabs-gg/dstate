@@ -551,6 +551,14 @@ func (g *GuildState) MemberPermissions(lock bool, channelID int64, memberID int6
 	return g.MemberPermissionsMS(false, channelID, mState)
 }
 
+const IgnoreChannelPerms = discordgo.PermissionAdministrator |
+	discordgo.PermissionManageServer |
+	discordgo.PermissionChangeNickname |
+	discordgo.PermissionManageServer |
+	discordgo.PermissionManageRoles |
+	discordgo.PermissionKickMembers |
+	discordgo.PermissionBanMembers
+
 // Calculates the permissions for a member.
 // https://support.discordapp.com/hc/en-us/articles/206141927-How-is-the-permission-hierarchy-structured-
 func (g *GuildState) MemberPermissionsMS(lock bool, channelID int64, mState *MemberState) (apermissions int, err error) {
@@ -613,6 +621,11 @@ func (g *GuildState) MemberPermissionsMS(lock bool, channelID int64, mState *Mem
 			}
 		}
 	}
+
+	// the api performs no server side validation, having Administrator perms in a channel override is totally valid
+	// but offcourse its not really since you cant see it in the ui and it makes no sense.
+	denies &= ^IgnoreChannelPerms
+	allows &= ^IgnoreChannelPerms
 
 	apermissions &= ^denies
 	apermissions |= allows
