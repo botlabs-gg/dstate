@@ -602,8 +602,8 @@ func (g *GuildState) MemberPermissionsMS(lock bool, channelID int64, mState *Mem
 	// Apply @everyone overrides from the channel.
 	for _, overwrite := range cState.PermissionOverwrites {
 		if g.Guild.ID == overwrite.ID {
-			apermissions &= ^overwrite.Deny
-			apermissions |= overwrite.Allow
+			apermissions &= ^(overwrite.Deny & ^IgnoreChannelPerms)
+			apermissions |= (overwrite.Allow & ^IgnoreChannelPerms)
 			break
 		}
 	}
@@ -632,8 +632,8 @@ func (g *GuildState) MemberPermissionsMS(lock bool, channelID int64, mState *Mem
 
 	for _, overwrite := range cState.PermissionOverwrites {
 		if overwrite.Type == "member" && overwrite.ID == mState.ID {
-			apermissions &= ^overwrite.Deny
-			apermissions |= overwrite.Allow
+			apermissions &= ^(overwrite.Deny & ^IgnoreChannelPerms)
+			apermissions |= (overwrite.Allow & ^IgnoreChannelPerms)
 			break
 		}
 	}
