@@ -1,8 +1,8 @@
 # Dstate v2
 
-v2 of dstate is a completely redesigned from scratch state tracker that is in no way compatible with the old one.
+v3 of dstate is a completely redesigned from scratch state tracker that is in no way compatible with the old one.
 
-v1 had many issues, such as:
+v1 and 2 had many issues, such as:
 
  - Not pluggable, there was 1 tracker that you were forced to use, couldn't swap implementations easily
  - Hard to use
