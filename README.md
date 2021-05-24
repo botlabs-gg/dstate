@@ -1,4 +1,4 @@
-# Dstate v2
+# Dstate v3
 
 v3 of dstate is a completely redesigned from scratch state tracker that is in no way compatible with the old one.
 
