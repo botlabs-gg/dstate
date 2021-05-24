@@ -1,63 +1,21 @@
-# dstate
+# Dstate v2
 
-!! This only works with my discordgo fork !!
+v2 of dstate is a completely redesigned from scratch state tracker that is in no way compatible with the old one.
 
-dstate is an alternative state tracker to the standard one in discordgo.
+v1 had many issues, such as:
 
-It's a bit more advanced but offer more features and it's easier to avoid race conditions with.
+ - Not pluggable, there was 1 tracker that you were forced to use, couldn't swap implementations easily
+ - Hard to use
+    - Manual lock management
+    - Which functions return references and which returns copies?
+    - Which references are fine to deref and which are not?, which fields are immutable?
+ - Hard to develop, very complex, a lot references, complex structs, complex locking, and so on
 
-Concurrency safety:
+v3 tries to fix all of these and improve things in general by defining a interface in which there is no manual lock management for the user. All read operations are safe from returned references and objects, but write operations on them is undefined behaviour as they can reference state/cached state and have multiple readers.
+Another goal of this is to enable the ability to have a remote state tracker, such as implementing a seperate gateway/worker system, as such the interface is also defined with this in mind.
 
- - Individual Roles, VoiceStates, MessageStates are never modified, they are replaced completely, making them safe to be passed around everywhere.
- - All slices in ChannelState is safe to read in ChannelState copies, but not write to, as the slices are replaced entirely when updates occur.
- - Slices on guild requires a Deep copy to be safely read, lightCopy will nil them.
- - To read properties on ChannelState, GuildState and MessageStates (beyond ID, GuildID, ChannelState.GS) you need to either acquire a read lock or a copy
+The core of v2 is the interface found in interface.go and a reference implementation that is a memory state tracker can be found in inmemorytracker.
 
-Balancing performance and usability is hard with state tracking, you basically have 2 options:
- - Replace full state objects on every smaller update, then give out direct references when users request data from it. This is performant for data requests but heavy for state updates
- - Update the state objects partially and return full copies when users request data. This is performant for state updates but *can* be heavy for data requests
+The reference tracker is a per shard tracker which will be used in production with yags until its ready for a seperated gateway/worker system, because of that it's built to be very performant with a per shard lock.
 
-I chose a hybrid model, the smaller objects (Roles, VoiceStates) are replaced completely instead of partially updated,and GuildState, GuildState.Guild, MemberState ChannelState and MessageState is updated partially, because of the size and rate of them.
-
-Example:
-
-Retrieving a channel, and getting the name without data races
-```go
-// Standard state in discrodgo
-
-// call channel, state is rlocked inside
-channel := state.Channel(id)
-// We have to rlock the whole state to get the name
-state.RLock()
-name := channel.Name
-state.RUnlock()
-
-
-
-// dstate
-
-// call channel, state is rlocked inside if lock is set to true
-channelState := state.Channel(true, id)
-// Instead of locking the whole state, we either lock just the channel if it's a private channel, or the parent guild
-channelState.Owner.RLock()
-name := channelstate.Channel.name
-channelState.Owner.RUnlock()
-
-// can also create a copy, which after creation you can access and modify fields without worrying about data races as it's a copy
-channelCopy := channelState.Copy(lock, deep /*also copy perm overwrites*/)
-
-// Some data can be accessed safely without locking as they are never mutated:
-channelState.ID()
-channelState.Type()
-channelState.IsPrivate()
-channelState.Recipient()
-```
-
-Differences:
-
- - Per guild rw mutex
-     + So you don't need to lock the whole state if you want to avoid race conditions
- - Optionally keep deleted messages in state (with a flag on them set if deleted)
- - Presence tracking
- - Optionally remove offline members from state (if your're on limited memory)
- - Set a max message age to only keep messages up untill a certain age in the state
+The previous versions were also built during a time where not all events had a guild id attached to them, for example messages, this meant things were a bit complicated but now every event had a guild id on it which means we no longer have to do a 2 stage locking process. 

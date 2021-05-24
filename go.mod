@@ -1,4 +1,4 @@
-module github.com/jonas747/dstate/v2
+module github.com/jonas747/dstate/v3
 
 go 1.13
 
