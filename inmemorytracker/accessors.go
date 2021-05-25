@@ -88,18 +88,6 @@ func (tracker *InMemoryTracker) getRolePermisisonsLocked(shard *ShardTracker, gu
 	return perms, ok
 }
 
-// func (tracker *InMemoryTracker) GetGuild(guildID int64) *dstate.GuildState {
-// 	shard := tracker.getGuildShard(guildID)
-// 	shard.mu.RLock()
-// 	defer shard.mu.RUnlock()
-
-// 	if guild, ok := shard.guilds[guildID]; ok {
-// 		return guild.Guild
-// 	}
-
-// 	return nil
-// }
-
 func (tracker *InMemoryTracker) GetChannel(guildID int64, channelID int64) *dstate.ChannelState {
 	shard := tracker.getGuildShard(guildID)
 	shard.mu.RLock()
@@ -181,7 +169,7 @@ func (tracker *InMemoryTracker) IterateMembers(guildID int64, f func(chunk []*ds
 	f(members)
 }
 
-func (tracker *InMemoryTracker) cloneMessages(guildID int64, channelID int64) []*dstate.MessageState {
+func (tracker *InMemoryTracker) messageSlice(guildID int64, channelID int64, before int64, limit int, buf []*dstate.MessageState) []*dstate.MessageState {
 	shard := tracker.getGuildShard(guildID)
 	shard.mu.RLock()
 	defer shard.mu.RUnlock()
@@ -191,30 +179,28 @@ func (tracker *InMemoryTracker) cloneMessages(guildID int64, channelID int64) []
 		return nil
 	}
 
-	messagesCop := make([]*dstate.MessageState, shard.messages[channelID].Len())
-	if len(messagesCop) < 1 {
-		return nil
+	l := limit
+	if limit < 1 {
+		l = messages.Len()
 	}
 
+	if buf != nil && cap(buf) >= l {
+		buf = buf[:l]
+	} else {
+		buf = make([]*dstate.MessageState, l)
+	}
+
+	i := 0
 	for e := messages.Front(); e != nil; e = e.Next() {
-		messagesCop = append(messagesCop, e.Value.(*dstate.MessageState))
+		buf[i] = e.Value.(*dstate.MessageState)
+		i++
 	}
 
-	return messagesCop
+	return buf[:i]
 }
 
-// this IterateMessages implementation is very simple, it makes a full copy of the messages slice and calls f in one chunk
-// func (tracker *InMemoryTracker) IterateMessages(guildID int64, channelID int64, f func(chunk []*dstate.MessageState) bool) {
-// 	messages := tracker.cloneMessages(guildID, channelID)
-// 	if len(messages) < 1 {
-// 		return // nothing to do
-// 	}
-
-// 	f(messages)
-// }
-
-func (tracker *InMemoryTracker) GetMessages(guildID int64, channelID int64) []*dstate.MessageState {
-	return tracker.cloneMessages(guildID, channelID)
+func (tracker *InMemoryTracker) GetMessages(guildID int64, channelID int64, before int64, limit int, buf []*dstate.MessageState) []*dstate.MessageState {
+	return tracker.messageSlice(guildID, channelID, before, limit, buf)
 }
 
 func (tracker *InMemoryTracker) GetShardGuilds(shardID int64) []*dstate.GuildSet {

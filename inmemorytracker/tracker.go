@@ -217,6 +217,20 @@ func (shard *ShardTracker) handleGuildCreate(gc *discordgo.GuildCreate) {
 	}
 
 	shard.guilds[gc.ID] = guildState
+
+	for _, v := range gc.Members {
+		ms := dstate.MemberStateFromMember(v)
+		ms.GuildID = gc.ID
+		shard.innerHandleMemberUpdate(ms)
+	}
+
+	for _, v := range gc.Presences {
+		ms := dstate.MemberStateFromPresence(&discordgo.PresenceUpdate{
+			Presence: *v,
+			GuildID:  gc.ID,
+		})
+		shard.innerHandlePresenceUpdate(ms)
+	}
 }
 
 func (shard *ShardTracker) handleGuildUpdate(gu *discordgo.GuildUpdate) {
@@ -376,39 +390,37 @@ func (shard *ShardTracker) handleMemberCreate(m *discordgo.GuildMemberAdd) {
 	newSparseGuild.Guild.MemberCount++
 	shard.guilds[m.GuildID] = newSparseGuild
 
-	shard.innerHandleMemberUpdate(m.Member)
+	shard.innerHandleMemberUpdate(dstate.MemberStateFromMember(m.Member))
 }
 
 func (shard *ShardTracker) handleMemberUpdate(m *discordgo.Member) {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
-	shard.innerHandleMemberUpdate(m)
+	shard.innerHandleMemberUpdate(dstate.MemberStateFromMember(m))
 }
 
 // assumes state is locked
-func (shard *ShardTracker) innerHandleMemberUpdate(m *discordgo.Member) {
+func (shard *ShardTracker) innerHandleMemberUpdate(ms *dstate.MemberState) {
 
-	members, ok := shard.members[m.GuildID]
+	members, ok := shard.members[ms.GuildID]
 	if !ok {
 		// intialize slice
-		shard.members[m.GuildID] = []*dstate.MemberState{dstate.MemberStateFromMember(m)}
+		shard.members[ms.GuildID] = []*dstate.MemberState{ms}
 		return
 	}
 
 	for i, v := range members {
-		if v.User.ID == m.User.ID {
+		if v.User.ID == ms.User.ID {
 			// replace in slice
-			new := dstate.MemberStateFromMember(m)
-			new.Presence = v.Presence
-
-			members[i] = new
+			ms.Presence = v.Presence
+			members[i] = ms
 			return
 		}
 	}
 
 	// member was not already in state, we need to add it to the members slice
-	members = append(members, dstate.MemberStateFromMember(m))
-	shard.members[m.GuildID] = members
+	members = append(members, ms)
+	shard.members[ms.GuildID] = members
 }
 
 func (shard *ShardTracker) handleMemberDelete(mr *discordgo.GuildMemberRemove) {
@@ -590,27 +602,29 @@ func (shard *ShardTracker) handlePresenceUpdate(p *discordgo.PresenceUpdate) {
 		return
 	}
 
-	members, ok := shard.members[p.GuildID]
+	shard.innerHandlePresenceUpdate(dstate.MemberStateFromPresence(p))
+}
+
+func (shard *ShardTracker) innerHandlePresenceUpdate(ms *dstate.MemberState) {
+	members, ok := shard.members[ms.GuildID]
 	if !ok {
 		// intialize slice
-		shard.members[p.GuildID] = []*dstate.MemberState{dstate.MemberStateFromPresence(p)}
+		shard.members[ms.GuildID] = []*dstate.MemberState{ms}
 		return
 	}
 
 	for i, v := range members {
-		if v.User.ID == p.User.ID {
+		if v.User.ID == ms.User.ID {
 			// replace in slice
-			new := dstate.MemberStateFromPresence(p)
-			new.Member = v.Member
-
-			members[i] = new
+			ms.Member = v.Member
+			members[i] = ms
 			return
 		}
 	}
 
 	// member was not already in state, we need to add it to the members slice
-	members = append(members, dstate.MemberStateFromPresence(p))
-	shard.members[p.GuildID] = members
+	members = append(members, ms)
+	shard.members[ms.GuildID] = members
 }
 
 func (shard *ShardTracker) handleVoiceStateUpdate(p *discordgo.VoiceStateUpdate) {
