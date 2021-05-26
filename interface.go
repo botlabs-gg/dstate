@@ -116,6 +116,7 @@ type GuildState struct {
 	MemberCount int64
 	OwnerID     int64
 	Region      string
+	Name        string
 }
 
 func GuildStateFromDgo(guild *discordgo.Guild) *GuildState {
@@ -132,6 +133,7 @@ func GuildStateFromDgo(guild *discordgo.Guild) *GuildState {
 		Region:      guild.Region,
 		MemberCount: int64(guild.MemberCount),
 		OwnerID:     guild.OwnerID,
+		Name:        guild.Name,
 	}
 }
 
@@ -139,6 +141,9 @@ type ChannelState struct {
 	ID       int64
 	GuildID  int64
 	ParentID int64
+	Name     string
+	Topic    string
+	Type     discordgo.ChannelType
 
 	PermissionOverwrites []discordgo.PermissionOverwrite
 }
@@ -154,6 +159,9 @@ func ChannelStateFromDgo(c *discordgo.Channel) *ChannelState {
 		GuildID:              c.GuildID,
 		PermissionOverwrites: pos,
 		ParentID:             c.ParentID,
+		Name:                 c.Name,
+		Topic:                c.Topic,
+		Type:                 c.Type,
 	}
 }
 
