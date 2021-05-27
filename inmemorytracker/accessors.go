@@ -169,7 +169,7 @@ func (tracker *InMemoryTracker) IterateMembers(guildID int64, f func(chunk []*ds
 	f(members)
 }
 
-func (tracker *InMemoryTracker) messageSlice(guildID int64, channelID int64, before int64, limit int, buf []*dstate.MessageState) []*dstate.MessageState {
+func (tracker *InMemoryTracker) GetMessages(guildID int64, channelID int64, query *dstate.MessagesQuery) []*dstate.MessageState {
 	shard := tracker.getGuildShard(guildID)
 	shard.mu.RLock()
 	defer shard.mu.RUnlock()
@@ -179,28 +179,53 @@ func (tracker *InMemoryTracker) messageSlice(guildID int64, channelID int64, bef
 		return nil
 	}
 
-	l := limit
+	limit := query.Limit
 	if limit < 1 {
-		l = messages.Len()
+		limit = messages.Len()
 	}
 
-	if buf != nil && cap(buf) >= l {
-		buf = buf[:l]
+	buf := query.Buf
+	if buf != nil && cap(buf) >= limit {
+		buf = buf[:limit]
 	} else {
-		buf = make([]*dstate.MessageState, l)
+		buf = make([]*dstate.MessageState, limit)
 	}
 
 	i := 0
-	for e := messages.Front(); e != nil; e = e.Next() {
-		buf[i] = e.Value.(*dstate.MessageState)
-		i++
+	for e := messages.Back(); e != nil; e = e.Prev() {
+		cast := e.Value.(*dstate.MessageState)
+		include, cont := checkMessage(query, cast)
+		if include {
+			buf[i] = cast
+			i++
+
+			if i >= limit {
+				break
+			}
+		}
+
+		if !cont {
+			break
+		}
 	}
 
 	return buf[:i]
 }
 
-func (tracker *InMemoryTracker) GetMessages(guildID int64, channelID int64, before int64, limit int, buf []*dstate.MessageState) []*dstate.MessageState {
-	return tracker.messageSlice(guildID, channelID, before, limit, buf)
+func checkMessage(q *dstate.MessagesQuery, m *dstate.MessageState) (include bool, continueIter bool) {
+	if q.Before != 0 && m.ID >= q.Before {
+		return false, true
+	}
+
+	if q.After != 0 && m.ID <= q.After {
+		return false, false
+	}
+
+	if !q.IncludeDeleted && m.Deleted {
+		return false, true
+	}
+
+	return true, true
 }
 
 func (tracker *InMemoryTracker) GetShardGuilds(shardID int64) []*dstate.GuildSet {

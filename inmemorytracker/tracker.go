@@ -532,6 +532,7 @@ func (shard *ShardTracker) handleMessageUpdate(m *discordgo.MessageUpdate) {
 				}
 
 				e.Value = &cop
+				return
 				// m.parseTimes(msg.Timestamp, msg.EditedTimestamp)
 			}
 		}
@@ -551,7 +552,9 @@ func (shard *ShardTracker) handleMessageDelete(m *discordgo.MessageDelete) {
 			cast := e.Value.(*dstate.MessageState)
 
 			if cast.ID == m.ID {
-				cl.Remove(e)
+				cop := *cast
+				cop.Deleted = true
+				e.Value = &cop
 				return
 			}
 		}
@@ -572,17 +575,9 @@ func (shard *ShardTracker) handleMessageDeleteBulk(m *discordgo.MessageDeleteBul
 
 			for _, delID := range m.Messages {
 				if delID == cast.ID {
-					// since we remove it, we need to update our looping cursor aswell
-					newNext := e.Next()
-
-					cl.Remove(e)
-
-					if newNext == nil {
-						e = cl.Back()
-					} else {
-						e = newNext
-					}
-
+					cop := *cast
+					cop.Deleted = true
+					e.Value = &cop
 					break
 				}
 			}

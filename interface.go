@@ -2,6 +2,8 @@ package dstate
 
 import (
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/jonas747/discordgo"
 )
@@ -27,7 +29,7 @@ type StateTracker interface {
 	// GetMessages returns the messages of the channel, up to limit, you may pass in a pre-allocated buffer to save allocations.
 	// If cap(buf) is less than the needed then a new one will be created and returned
 	// if len(buf) is greater than needed, it will be sliced to the proper length
-	GetMessages(guildID int64, channelID int64, before int64, limit int, buf []*MessageState) []*MessageState
+	GetMessages(guildID int64, channelID int64, query *MessagesQuery) []*MessageState
 
 	// Calls f on all members, return true to continue or false to stop
 	//
@@ -117,24 +119,7 @@ type GuildState struct {
 	OwnerID     int64
 	Region      string
 	Name        string
-}
-
-func GuildStateFromDgo(guild *discordgo.Guild) *GuildState {
-	if guild.Unavailable {
-		return &GuildState{
-			ID:        guild.ID,
-			Available: false,
-		}
-	}
-
-	return &GuildState{
-		ID:          guild.ID,
-		Available:   true,
-		Region:      guild.Region,
-		MemberCount: int64(guild.MemberCount),
-		OwnerID:     guild.OwnerID,
-		Name:        guild.Name,
-	}
+	Icon        string
 }
 
 type ChannelState struct {
@@ -144,25 +129,19 @@ type ChannelState struct {
 	Name     string
 	Topic    string
 	Type     discordgo.ChannelType
+	NSFW     bool
+	Position int
+	Bitrate  int
 
 	PermissionOverwrites []discordgo.PermissionOverwrite
 }
 
-func ChannelStateFromDgo(c *discordgo.Channel) *ChannelState {
-	pos := make([]discordgo.PermissionOverwrite, len(c.PermissionOverwrites))
-	for i, v := range c.PermissionOverwrites {
-		pos[i] = *v
+func (c *ChannelState) IsPrivate() bool {
+	if c.Type == discordgo.ChannelTypeDM || c.Type == discordgo.ChannelTypeGroupDM {
+		return true
 	}
 
-	return &ChannelState{
-		ID:                   c.ID,
-		GuildID:              c.GuildID,
-		PermissionOverwrites: pos,
-		ParentID:             c.ParentID,
-		Name:                 c.Name,
-		Topic:                c.Topic,
-		Type:                 c.Type,
-	}
+	return false
 }
 
 // A fully cached member
@@ -182,8 +161,30 @@ type MemberFields struct {
 	JoinedAt discordgo.Timestamp
 }
 
+type PresenceStatus int32
+
+const (
+	StatusNotSet       PresenceStatus = 0
+	StatusOnline       PresenceStatus = 1
+	StatusIdle         PresenceStatus = 2
+	StatusDoNotDisturb PresenceStatus = 3
+	StatusInvisible    PresenceStatus = 4
+	StatusOffline      PresenceStatus = 5
+)
+
 type PresenceFields struct {
 	// Acitvity here
+	Game   *LightGame
+	Status PresenceStatus
+}
+
+type LightGame struct {
+	Name    string `json:"name"`
+	URL     string `json:"url,omitempty"`
+	Details string `json:"details,omitempty"`
+	State   string `json:"state,omitempty"`
+
+	Type discordgo.GameType `json:"type"`
 }
 
 func MemberStateFromMember(member *discordgo.Member) *MemberState {
@@ -202,23 +203,6 @@ func MemberStateFromMember(member *discordgo.Member) *MemberState {
 			JoinedAt: member.JoinedAt,
 		},
 		Presence: nil,
-	}
-}
-
-func MemberStateFromPresence(p *discordgo.PresenceUpdate) *MemberState {
-	var user discordgo.User
-	if p.User != nil {
-		user = *p.User
-	}
-
-	return &MemberState{
-		User:    user,
-		GuildID: p.GuildID,
-		Roles:   p.Roles,
-		Nick:    p.Nick,
-
-		Member:   nil,
-		Presence: &PresenceFields{},
 	}
 }
 
@@ -251,50 +235,24 @@ type MessageState struct {
 	Mentions     []discordgo.User
 	MentionRoles []int64
 	Attachments  []discordgo.MessageAttachment
+
+	ParsedCreatedAt time.Time
+	ParsedEditedAt  time.Time
+
+	Deleted bool
 }
 
-func MessageStateFromDgo(m *discordgo.Message) *MessageState {
-	var embeds []discordgo.MessageEmbed
-	if len(m.Embeds) > 0 {
-		embeds = make([]discordgo.MessageEmbed, len(m.Embeds))
-		for i, v := range m.Embeds {
-			embeds[i] = *v
-		}
+func (m *MessageState) ContentWithMentionsReplaced() string {
+	content := m.Content
+
+	for _, user := range m.Mentions {
+		content = strings.NewReplacer(
+			"<@"+strconv.FormatInt(user.ID, 10)+">", "@"+user.Username,
+			"<@!"+strconv.FormatInt(user.ID, 10)+">", "@"+user.Username,
+		).Replace(content)
 	}
 
-	var mentions []discordgo.User
-	if len(m.Mentions) > 0 {
-		mentions = make([]discordgo.User, len(m.Mentions))
-		for i, v := range m.Mentions {
-			mentions[i] = *v
-		}
-	}
-
-	var attachments []discordgo.MessageAttachment
-	if len(m.Attachments) > 0 {
-		attachments = make([]discordgo.MessageAttachment, len(m.Attachments))
-		for i, v := range m.Attachments {
-			attachments[i] = *v
-		}
-	}
-
-	var author discordgo.User
-	if m.Author != nil {
-		author = *m.Author
-	}
-
-	return &MessageState{
-		ID:        m.ID,
-		GuildID:   m.GuildID,
-		ChannelID: m.ChannelID,
-		Author:    author,
-		Member:    m.Member,
-
-		Embeds:       embeds,
-		Mentions:     mentions,
-		Attachments:  attachments,
-		MentionRoles: m.MentionRoles,
-	}
+	return content
 }
 
 var _ error = (*ErrGuildNotFound)(nil)
@@ -333,4 +291,17 @@ func IsChannelNotFound(e error) (bool, int64) {
 	}
 
 	return false, 0
+}
+
+type MessagesQuery struct {
+	Buf []*MessageState
+
+	// Get messages made before this ID (message_id <  before)
+	Before int64
+
+	// Get messages made after this ID (message_id > after)
+	After int64
+
+	Limit          int
+	IncludeDeleted bool
 }
