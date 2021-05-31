@@ -237,15 +237,15 @@ func (tracker *InMemoryTracker) GetShardGuilds(shardID int64) []*dstate.GuildSet
 	shard.mu.RLock()
 	defer shard.mu.RUnlock()
 
-	gCop := make([]*dstate.GuildSet, len(shard.guilds))
-	for i, v := range shard.guilds {
-		gCop[i] = &dstate.GuildSet{
+	gCop := make([]*dstate.GuildSet, 0, len(shard.guilds))
+	for _, v := range shard.guilds {
+		gCop = append(gCop, &dstate.GuildSet{
 			GuildState:  *v.Guild,
 			Channels:    v.Channels,
 			Roles:       v.Roles,
 			Emojis:      v.Emojis,
 			VoiceStates: v.VoiceStates,
-		}
+		})
 	}
 
 	return gCop
