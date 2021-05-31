@@ -149,8 +149,6 @@ type MemberState struct {
 	// All the sparse fields are always available
 	User    discordgo.User
 	GuildID int64
-	Roles   []int64
-	Nick    string
 
 	// These are not always available and all usages should be checked
 	Member   *MemberFields
@@ -159,6 +157,8 @@ type MemberState struct {
 
 type MemberFields struct {
 	JoinedAt discordgo.Timestamp
+	Roles    []int64
+	Nick     string
 }
 
 type PresenceStatus int32
@@ -196,22 +196,28 @@ func MemberStateFromMember(member *discordgo.Member) *MemberState {
 	return &MemberState{
 		User:    user,
 		GuildID: member.GuildID,
-		Roles:   member.Roles,
-		Nick:    member.Nick,
 
 		Member: &MemberFields{
 			JoinedAt: member.JoinedAt,
+			Roles:    member.Roles,
+			Nick:     member.Nick,
 		},
 		Presence: nil,
 	}
 }
 
+// Converts a member state into a discordgo.Member
+// this will return nil if member is not available
 func (ms *MemberState) DgoMember() *discordgo.Member {
+	if ms.Member == nil {
+		return nil
+	}
+
 	m := &discordgo.Member{
 		GuildID:  ms.GuildID,
 		JoinedAt: ms.Member.JoinedAt,
-		Nick:     ms.Nick,
-		Roles:    ms.Roles,
+		Nick:     ms.Member.Nick,
+		Roles:    ms.Member.Roles,
 		User:     &ms.User,
 	}
 

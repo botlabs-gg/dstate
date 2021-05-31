@@ -119,8 +119,6 @@ func MemberStateFromPresence(p *discordgo.PresenceUpdate) *MemberState {
 	return &MemberState{
 		User:    user,
 		GuildID: p.GuildID,
-		Roles:   p.Roles,
-		Nick:    p.Nick,
 
 		Member: nil,
 		Presence: &PresenceFields{

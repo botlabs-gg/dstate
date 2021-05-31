@@ -52,11 +52,11 @@ func (tracker *InMemoryTracker) GetMemberPermissions(guildID int64, channelID in
 	defer shard.mu.RUnlock()
 
 	member := shard.getMemberLocked(guildID, memberID)
-	if member == nil {
+	if member == nil || member.Member == nil {
 		return 0, false
 	}
 
-	return tracker.getRolePermisisonsLocked(shard, guildID, channelID, memberID, member.Roles)
+	return tracker.getRolePermisisonsLocked(shard, guildID, channelID, memberID, member.Member.Roles)
 }
 
 func (tracker *InMemoryTracker) GetRolePermisisons(guildID int64, channelID int64, memberID int64, roles []int64) (perms int64, ok bool) {
