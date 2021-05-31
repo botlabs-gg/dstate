@@ -38,7 +38,7 @@ func (shard *ShardTracker) getMemberLocked(guildID int64, memberID int64) *dstat
 	if ml, ok := shard.members[guildID]; ok {
 		for _, v := range ml {
 			if v.User.ID == memberID {
-				return v
+				return &v.MemberState
 			}
 		}
 	}
@@ -155,7 +155,10 @@ func (tracker *InMemoryTracker) cloneMembers(guildID int64) []*dstate.MemberStat
 		return nil
 	}
 
-	copy(membersCop, shard.members[guildID])
+	for i, v := range shard.members[guildID] {
+		membersCop[i] = &v.MemberState
+	}
+
 	return membersCop
 }
 
@@ -249,4 +252,45 @@ func (tracker *InMemoryTracker) GetShardGuilds(shardID int64) []*dstate.GuildSet
 	}
 
 	return gCop
+}
+
+// SetGuild allows you to manually add guilds to the state tracker, for example when recovering state
+func (tracker *InMemoryTracker) SetGuild(gs *dstate.GuildSet) {
+	shard := tracker.getGuildShard(gs.ID)
+	if shard == nil {
+		panic("unknown shard")
+	}
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	shard.guilds[gs.ID] = SparseGuildStateFromDstate(gs)
+
+}
+
+// SetMember allows you to manually add members to the state tracker, for example for caching reasons
+func (tracker *InMemoryTracker) SetMember(ms *dstate.MemberState) {
+	shard := tracker.getGuildShard(ms.User.ID)
+	if shard == nil {
+		panic("unknown shard")
+	}
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	shard.innerHandleMemberUpdate(ms)
+}
+
+// DelShard allows you to manually reset shards in the state
+// notice how i said reset and not delete, as the shards themselves are fixed.
+func (tracker *InMemoryTracker) DelShard(shardID int64) {
+	shard := tracker.getShard(shardID)
+	if shard == nil {
+		panic("unknown shard")
+	}
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	shard.reset()
 }
