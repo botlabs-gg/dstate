@@ -44,8 +44,8 @@ func createTestMember(guildID int64, id int64, roles []int64) *discordgo.Member 
 	}
 }
 
-func createTestState() *InMemoryTracker {
-	state := NewInMemoryTracker(TrackerConfig{}, 1)
+func createTestState(conf TrackerConfig) *InMemoryTracker {
+	state := NewInMemoryTracker(conf, 1)
 	state.HandleEvent(testSession, &discordgo.GuildCreate{
 		Guild: &discordgo.Guild{
 			ID:          initialTestGuildID,
@@ -86,7 +86,7 @@ func assertMemberExists(t *testing.T, tracker *InMemoryTracker, guildID int64, m
 }
 
 func TestGuildCreate(t *testing.T) {
-	tracker := createTestState()
+	tracker := createTestState(TrackerConfig{})
 	assertMemberExists(t, tracker, 1, initialTestMemberID, true, true)
 
 	gs := tracker.GetGuild(initialTestGuildID)
@@ -104,7 +104,7 @@ func TestGuildCreate(t *testing.T) {
 }
 
 func TestNoneExistantMember(t *testing.T) {
-	tracker := createTestState()
+	tracker := createTestState(TrackerConfig{})
 	ms := tracker.GetMember(1, 10001)
 	if ms != nil {
 		t.Fatal("ms is not nul, should be nil")
@@ -112,7 +112,7 @@ func TestNoneExistantMember(t *testing.T) {
 }
 
 func TestMemberAdd(t *testing.T) {
-	tracker := createTestState()
+	tracker := createTestState(TrackerConfig{})
 
 	tracker.HandleEvent(testSession, &discordgo.GuildMemberAdd{
 		Member: createTestMember(1, 1001, nil),

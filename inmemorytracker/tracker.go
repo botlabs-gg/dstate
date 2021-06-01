@@ -14,6 +14,9 @@ type TrackerConfig struct {
 	ChannelMessageDur time.Duration
 
 	ChannelMessageLimitsF func(guildID int64) (int, time.Duration)
+
+	// RemoveOfflineMembers      bool
+	RemoveOfflineMembersAfter time.Duration
 }
 
 type InMemoryTracker struct {
@@ -37,6 +40,12 @@ func NewInMemoryTracker(conf TrackerConfig, totalShards int64) *InMemoryTracker 
 func (t *InMemoryTracker) HandleEvent(s *discordgo.Session, evt interface{}) {
 	shard := t.getShard(int64(s.ShardID))
 	shard.HandleEvent(s, evt)
+}
+
+func (t *InMemoryTracker) RunGCLoop(interval time.Duration) {
+	for _, v := range t.shards {
+		go v.runGcLoop(interval)
+	}
 }
 
 // These are updated less frequently and so we remake the indiv lists on update
@@ -488,19 +497,6 @@ func (shard *ShardTracker) handleMessageCreate(m *discordgo.MessageCreate) {
 
 	if cl, ok := shard.messages[m.ChannelID]; ok {
 		cl.PushBack(dstate.MessageStateFromDgo(m.Message))
-
-		// clean up overflow
-		limit := shard.conf.ChannelMessageLen
-		if shard.conf.ChannelMessageLimitsF != nil {
-			limit, _ = shard.conf.ChannelMessageLimitsF(m.GuildID)
-		}
-
-		if limit > 0 {
-			overflow := cl.Len() - limit
-			for i := overflow; i > 0; i-- {
-				cl.Remove(cl.Front())
-			}
-		}
 	} else {
 		cl := list.New()
 		cl.PushBack(dstate.MessageStateFromDgo(m.Message))
