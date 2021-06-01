@@ -42,6 +42,8 @@ func (t *InMemoryTracker) HandleEvent(s *discordgo.Session, evt interface{}) {
 	shard.HandleEvent(s, evt)
 }
 
+// RunGCLoop starts a goroutine per shard that runs a gc on a guild per interval
+// note that this is per shard, so if you have the interval set to 1s and 10 shards, there will effectively be 10 guilds per second gc'd
 func (t *InMemoryTracker) RunGCLoop(interval time.Duration) {
 	for _, v := range t.shards {
 		go v.runGcLoop(interval)
