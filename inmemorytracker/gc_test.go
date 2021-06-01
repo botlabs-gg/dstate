@@ -44,15 +44,15 @@ func TestGCMessages(t *testing.T) {
 	verifyMessages(t, state, initialTestChannelID, []int64{10000, 10001, 10002})
 
 	// run a gc, verifying max len works
-	shard.gcGuild(time.Date(2021, 5, 20, 10, 0, 2, 0, time.UTC), shard.guilds[initialTestGuildID])
+	shard.gcTick(time.Date(2021, 5, 20, 10, 0, 2, 0, time.UTC), nil)
 	verifyMessages(t, state, initialTestChannelID, []int64{10001, 10002})
 
 	// run a gc verifying max age
-	shard.gcGuild(time.Date(2021, 5, 20, 11, 0, 3, 0, time.UTC), shard.guilds[initialTestGuildID])
+	shard.gcTick(time.Date(2021, 5, 20, 11, 0, 3, 0, time.UTC), nil)
 	verifyMessages(t, state, initialTestChannelID, []int64{10002})
 
 	// run yet another one because why not
-	shard.gcGuild(time.Date(2021, 5, 20, 12, 0, 3, 0, time.UTC), shard.guilds[initialTestGuildID])
+	shard.gcTick(time.Date(2021, 5, 20, 12, 0, 3, 0, time.UTC), nil)
 	verifyMessages(t, state, initialTestChannelID, []int64{})
 }
 
@@ -111,15 +111,15 @@ func TestGCMembers(t *testing.T) {
 	verifyMembers(t, state, initialTestGuildID, []int64{1000, 1001, 1002})
 
 	// trigger a gc with no efffect
-	shard.gcGuild(time.Date(2021, 5, 20, 10, 0, 0, 0, time.UTC), shard.guilds[initialTestGuildID])
+	shard.gcTick(time.Date(2021, 5, 20, 10, 0, 0, 0, time.UTC), nil)
 	verifyMembers(t, state, initialTestGuildID, []int64{1000, 1001, 1002})
 
 	// remove 1 member
-	shard.gcGuild(time.Date(2021, 5, 20, 11, 1, 0, 0, time.UTC), shard.guilds[initialTestGuildID])
+	shard.gcTick(time.Date(2021, 5, 20, 11, 1, 0, 0, time.UTC), nil)
 	verifyMembers(t, state, initialTestGuildID, []int64{1001, 1002})
 
 	// remove the other one, making sure the online one stays
-	shard.gcGuild(time.Date(2021, 5, 20, 12, 1, 0, 0, time.UTC), shard.guilds[initialTestGuildID])
+	shard.gcTick(time.Date(2021, 5, 20, 12, 1, 0, 0, time.UTC), nil)
 	verifyMembers(t, state, initialTestGuildID, []int64{1001})
 }
 

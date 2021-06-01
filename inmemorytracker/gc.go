@@ -13,11 +13,11 @@ func (shard *ShardTracker) runGcLoop(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	for {
 		<-ticker.C
-		remainingGuilds = shard.gcTick(remainingGuilds)
+		remainingGuilds = shard.gcTick(time.Now(), remainingGuilds)
 	}
 }
 
-func (shard *ShardTracker) gcTick(remainingGuilds []int64) []int64 {
+func (shard *ShardTracker) gcTick(t time.Time, remainingGuilds []int64) []int64 {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
@@ -34,7 +34,7 @@ func (shard *ShardTracker) gcTick(remainingGuilds []int64) []int64 {
 		remainingGuilds = remainingGuilds[1:]
 
 		if guild, ok := shard.guilds[next]; ok {
-			shard.gcGuild(time.Now(), guild)
+			shard.gcGuild(t, guild)
 			break
 		}
 	}
