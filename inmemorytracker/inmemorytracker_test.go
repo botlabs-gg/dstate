@@ -125,3 +125,56 @@ func TestMemberAdd(t *testing.T) {
 		t.Fatal("Member count not increased:", gs.MemberCount)
 	}
 }
+
+func TestChannelUpdate(t *testing.T) {
+	tracker := createTestState(TrackerConfig{})
+	channel := tracker.GetGuild(initialTestGuildID).GetChannel(initialTestChannelID)
+	if channel == nil {
+		t.Fatal("channel not found")
+	}
+
+	updt := createTestChannel(1, initialTestChannelID, nil)
+	updt.Name = "this is a new name!"
+
+	tracker.HandleEvent(testSession, &discordgo.ChannelUpdate{
+		Channel: updt,
+	})
+
+	channel = tracker.GetGuild(initialTestGuildID).GetChannel(initialTestChannelID)
+	if channel == nil {
+		t.Fatal("channel not found")
+	}
+
+	if channel.Name != updt.Name {
+		t.Fatalf("channel was not updated: name: %s", channel.Name)
+	}
+}
+
+func TestRoleUpdate(t *testing.T) {
+	tracker := createTestState(TrackerConfig{})
+	role := tracker.GetGuild(initialTestGuildID).GetRole(initialTestRoleID)
+	if role == nil {
+		t.Fatal("role not found")
+	}
+
+	updt := &discordgo.GuildRole{
+		Role: &discordgo.Role{
+			ID:   initialTestRoleID,
+			Name: "new role name!",
+		},
+		GuildID: initialTestGuildID,
+	}
+
+	tracker.HandleEvent(testSession, &discordgo.GuildRoleUpdate{
+		GuildRole: updt,
+	})
+
+	role = tracker.GetGuild(initialTestGuildID).GetRole(initialTestRoleID)
+	if role == nil {
+		t.Fatal("role not found")
+	}
+
+	if role.Name != updt.Role.Name {
+		t.Fatalf("role was not updated: name: %s", role.Name)
+	}
+}

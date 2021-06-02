@@ -2,6 +2,7 @@ package inmemorytracker
 
 import (
 	"container/list"
+	"sort"
 	"sync"
 	"time"
 
@@ -229,15 +230,19 @@ func (shard *ShardTracker) handleGuildCreate(gc *discordgo.GuildCreate) {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
-	channels := make([]dstate.ChannelState, 0, len(gc.Channels))
-	for _, v := range gc.Channels {
-		channels = append(channels, dstate.ChannelStateFromDgo(v))
+	channels := make([]dstate.ChannelState, len(gc.Channels))
+	for i, v := range gc.Channels {
+		channels[i] = dstate.ChannelStateFromDgo(v)
+		channels[i].GuildID = gc.ID
 	}
+
+	sort.Sort(dstate.Channels(channels))
 
 	roles := make([]discordgo.Role, len(gc.Roles))
 	for i := range gc.Roles {
 		roles[i] = *gc.Roles[i]
 	}
+	sort.Sort(dstate.Roles(roles))
 
 	emojis := make([]discordgo.Emoji, len(gc.Emojis))
 	for i := range gc.Emojis {
@@ -336,17 +341,22 @@ func (shard *ShardTracker) handleChannelCreateUpdate(c *discordgo.Channel) {
 		return
 	}
 
-	for i, v := range gs.Channels {
-		if v.ID == c.ID {
+	for i := range gs.Channels {
+		if gs.Channels[i].ID == c.ID {
 			newSparseGuild := gs.copyChannels()
 			newSparseGuild.Channels[i] = dstate.ChannelStateFromDgo(c)
+			sort.Sort(dstate.Channels(newSparseGuild.Channels))
+			shard.guilds[c.GuildID] = newSparseGuild
 			return
 		}
 	}
 
 	// channel was not already in state, we need to add it to the channels slice
+	// note: this is safe to do without copying the channels slice as were never handing out
+	// slice references
 	newSparseGuild := gs.copyGuildSet()
 	newSparseGuild.Channels = append(newSparseGuild.Channels, dstate.ChannelStateFromDgo(c))
+	sort.Sort(dstate.Channels(newSparseGuild.Channels))
 
 	shard.guilds[c.GuildID] = newSparseGuild
 }
@@ -389,6 +399,8 @@ func (shard *ShardTracker) handleRoleCreateUpdate(guildID int64, r *discordgo.Ro
 		if v.ID == r.ID {
 			newSparseGuild := gs.copyRoles()
 			newSparseGuild.Roles[i] = *r
+			sort.Sort(dstate.Roles(newSparseGuild.Roles))
+			shard.guilds[guildID] = newSparseGuild
 			return
 		}
 	}
@@ -399,6 +411,7 @@ func (shard *ShardTracker) handleRoleCreateUpdate(guildID int64, r *discordgo.Ro
 	// this does not need copying of the slice because were passing out copies of the slice
 	// and not slice references
 	newSparseGuild.Roles = append(newSparseGuild.Roles, *r)
+	sort.Sort(dstate.Roles(newSparseGuild.Roles))
 
 	shard.guilds[guildID] = newSparseGuild
 }

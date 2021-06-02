@@ -200,3 +200,44 @@ func GuildStateFromDgo(guild *discordgo.Guild) *GuildState {
 		SystemChannelID:             guild.SystemChannelID,
 	}
 }
+
+func IsRoleAbove(a, b *discordgo.Role) bool {
+	if a.Position != b.Position {
+		return a.Position > b.Position
+	}
+
+	if a.ID == b.ID {
+		return false
+	}
+
+	return a.ID < b.ID
+}
+
+// Channels are a collection of Channels
+type Channels []ChannelState
+
+func (r Channels) Len() int {
+	return len(r)
+}
+
+func (r Channels) Less(i, j int) bool {
+	return r[i].Position < r[j].Position
+}
+
+func (r Channels) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
+type Roles []discordgo.Role
+
+func (r Roles) Len() int {
+	return len(r)
+}
+
+func (r Roles) Less(i, j int) bool {
+	return IsRoleAbove(&r[i], &r[j])
+}
+
+func (r Roles) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
