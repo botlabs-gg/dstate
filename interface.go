@@ -113,27 +113,87 @@ func (gs *GuildSet) GetEmoji(id int64) *discordgo.Emoji {
 }
 
 type GuildState struct {
-	ID          int64
-	Available   bool
-	MemberCount int64
-	OwnerID     int64
-	Region      string
-	Name        string
-	Icon        string
+	ID          int64  `json:"id,string"`
+	Available   bool   `json:"available"`
+	MemberCount int64  `json:"member_count"`
+	OwnerID     int64  `json:"owner_id,string"`
+	Region      string `json:"region"`
+	Name        string `json:"name"`
+	Icon        string `json:"icon"`
+
+	Description string `json:"description"`
+
+	PreferredLocale string `json:"preferred_locale"`
+
+	// The ID of the AFK voice channel.
+	AfkChannelID int64 `json:"afk_channel_id,string"`
+
+	// The ID of the embed channel ID, used for embed widgets.
+	EmbedChannelID int64 `json:"embed_channel_id,string"`
+
+	// The hash of the guild's splash.
+	Splash string `json:"splash"`
+
+	// The timeout, in seconds, before a user is considered AFK in voice.
+	AfkTimeout int `json:"afk_timeout"`
+
+	// The verification level required for the guild.
+	VerificationLevel discordgo.VerificationLevel `json:"verification_level"`
+
+	// Whether the guild has embedding enabled.
+	EmbedEnabled bool `json:"embed_enabled"`
+
+	// Whether the guild is considered large. This is
+	// determined by a member threshold in the identify packet,
+	// and is currently hard-coded at 250 members in the library.
+	Large bool `json:"large"`
+
+	// The default message notification setting for the guild.
+	// 0 == all messages, 1 == mentions only.
+	DefaultMessageNotifications int `json:"default_message_notifications"`
+
+	MaxPresences int `json:"max_presences"`
+	MaxMembers   int `json:"max_members"`
+
+	// Whether this guild is currently unavailable (most likely due to outage).
+	// This field is only present in GUILD_CREATE events and websocket
+	// update events, and thus is only present in state-cached guilds.
+	Unavailable bool `json:"unavailable"`
+
+	// The explicit content filter level
+	ExplicitContentFilter discordgo.ExplicitContentFilterLevel `json:"explicit_content_filter"`
+
+	// The list of enabled guild features
+	Features []string `json:"features"`
+
+	// Required MFA level for the guild
+	MfaLevel discordgo.MfaLevel `json:"mfa_level"`
+
+	// Whether or not the Server Widget is enabled
+	WidgetEnabled bool `json:"widget_enabled"`
+
+	// The Channel ID for the Server Widget
+	WidgetChannelID string `json:"widget_channel_id"`
+
+	// The Channel ID to which system messages are sent (eg join and leave messages)
+	SystemChannelID string `json:"system_channel_id"`
 }
 
 type ChannelState struct {
-	ID       int64
-	GuildID  int64
-	ParentID int64
-	Name     string
-	Topic    string
-	Type     discordgo.ChannelType
-	NSFW     bool
-	Position int
-	Bitrate  int
+	ID               int64                 `json:"id,string"`
+	GuildID          int64                 `json:"guild_id,string"`
+	Name             string                `json:"name"`
+	Topic            string                `json:"topic"`
+	Type             discordgo.ChannelType `json:"type"`
+	NSFW             bool                  `json:"nsfw"`
+	Icon             string                `json:"icon"`
+	Position         int                   `json:"position"`
+	Bitrate          int                   `json:"bitrate"`
+	UserLimit        int                   `json:"user_limit"`
+	ParentID         int64                 `json:"parent_id,string"`
+	RateLimitPerUser int                   `json:"rate_limit_per_user"`
 
-	PermissionOverwrites []discordgo.PermissionOverwrite
+	PermissionOverwrites []discordgo.PermissionOverwrite `json:"permission_overwrites"`
 }
 
 func (c *ChannelState) IsPrivate() bool {
