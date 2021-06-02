@@ -55,10 +55,10 @@ func (t *InMemoryTracker) RunGCLoop(interval time.Duration) {
 // TODO: reuse the interface version of this?
 type SparseGuildState struct {
 	Guild       *dstate.GuildState
-	Channels    []*dstate.ChannelState
-	Roles       []*discordgo.Role
-	Emojis      []*discordgo.Emoji
-	VoiceStates []*discordgo.VoiceState
+	Channels    []dstate.ChannelState
+	Roles       []discordgo.Role
+	Emojis      []discordgo.Emoji
+	VoiceStates []discordgo.VoiceState
 }
 
 func SparseGuildStateFromDstate(gs *dstate.GuildSet) *SparseGuildState {
@@ -91,7 +91,7 @@ func (s *SparseGuildState) copyGuild() *SparseGuildState {
 func (s *SparseGuildState) copyChannels() *SparseGuildState {
 	guildSetCopy := *s
 
-	guildSetCopy.Channels = make([]*dstate.ChannelState, len(guildSetCopy.Channels))
+	guildSetCopy.Channels = make([]dstate.ChannelState, len(guildSetCopy.Channels))
 	copy(guildSetCopy.Channels, s.Channels)
 
 	return &guildSetCopy
@@ -101,7 +101,7 @@ func (s *SparseGuildState) copyChannels() *SparseGuildState {
 func (s *SparseGuildState) copyRoles() *SparseGuildState {
 	guildSetCopy := *s
 
-	guildSetCopy.Roles = make([]*discordgo.Role, len(guildSetCopy.Roles))
+	guildSetCopy.Roles = make([]discordgo.Role, len(guildSetCopy.Roles))
 	copy(guildSetCopy.Roles, s.Roles)
 
 	return &guildSetCopy
@@ -111,16 +111,16 @@ func (s *SparseGuildState) copyRoles() *SparseGuildState {
 func (s *SparseGuildState) copyVoiceStates() *SparseGuildState {
 	guildSetCopy := *s
 
-	guildSetCopy.VoiceStates = make([]*discordgo.VoiceState, len(guildSetCopy.VoiceStates))
+	guildSetCopy.VoiceStates = make([]discordgo.VoiceState, len(guildSetCopy.VoiceStates))
 	copy(guildSetCopy.VoiceStates, s.VoiceStates)
 
 	return &guildSetCopy
 }
 
 func (s *SparseGuildState) channel(id int64) *dstate.ChannelState {
-	for _, v := range s.Channels {
-		if v.ID == id {
-			return v
+	for i := range s.Channels {
+		if s.Channels[i].ID == id {
+			return &s.Channels[i]
 		}
 	}
 
@@ -229,17 +229,32 @@ func (shard *ShardTracker) handleGuildCreate(gc *discordgo.GuildCreate) {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
-	channels := make([]*dstate.ChannelState, 0, len(gc.Channels))
+	channels := make([]dstate.ChannelState, 0, len(gc.Channels))
 	for _, v := range gc.Channels {
 		channels = append(channels, dstate.ChannelStateFromDgo(v))
+	}
+
+	roles := make([]discordgo.Role, len(gc.Roles))
+	for i := range gc.Roles {
+		roles[i] = *gc.Roles[i]
+	}
+
+	emojis := make([]discordgo.Emoji, len(gc.Emojis))
+	for i := range gc.Emojis {
+		emojis[i] = *gc.Emojis[i]
+	}
+
+	voiceStates := make([]discordgo.VoiceState, len(gc.Emojis))
+	for i := range gc.VoiceStates {
+		voiceStates[i] = *gc.VoiceStates[i]
 	}
 
 	guildState := &SparseGuildState{
 		Guild:       dstate.GuildStateFromDgo(gc.Guild),
 		Channels:    channels,
-		Roles:       gc.Roles,
-		Emojis:      gc.Emojis,
-		VoiceStates: gc.VoiceStates,
+		Roles:       roles,
+		Emojis:      emojis,
+		VoiceStates: voiceStates,
 	}
 
 	shard.guilds[gc.ID] = guildState
@@ -373,14 +388,17 @@ func (shard *ShardTracker) handleRoleCreateUpdate(guildID int64, r *discordgo.Ro
 	for i, v := range gs.Roles {
 		if v.ID == r.ID {
 			newSparseGuild := gs.copyRoles()
-			newSparseGuild.Roles[i] = r
+			newSparseGuild.Roles[i] = *r
 			return
 		}
 	}
 
 	// role was not already in state, we need to add it to the roles slice
 	newSparseGuild := gs.copyGuildSet()
-	newSparseGuild.Roles = append(newSparseGuild.Roles, r)
+
+	// this does not need copying of the slice because were passing out copies of the slice
+	// and not slice references
+	newSparseGuild.Roles = append(newSparseGuild.Roles, *r)
 
 	shard.guilds[guildID] = newSparseGuild
 }
@@ -680,7 +698,7 @@ func (shard *ShardTracker) handleVoiceStateUpdate(p *discordgo.VoiceStateUpdate)
 				newGS.VoiceStates = append(newGS.VoiceStates[:i], newGS.VoiceStates[i+1:]...)
 			} else {
 				// just changed state
-				newGS.VoiceStates[i] = p.VoiceState
+				newGS.VoiceStates[i] = *p.VoiceState
 			}
 			return
 		}
@@ -710,8 +728,10 @@ func (shard *ShardTracker) handleEmojis(e *discordgo.GuildEmojisUpdate) {
 	}
 
 	newGS := gs.copyGuildSet()
-	newGS.Emojis = make([]*discordgo.Emoji, len(e.Emojis))
-	copy(newGS.Emojis, e.Emojis)
+	newGS.Emojis = make([]discordgo.Emoji, len(e.Emojis))
+	for i := range e.Emojis {
+		newGS.Emojis[i] = *e.Emojis[i]
+	}
 
 	shard.guilds[e.GuildID] = newGS
 }

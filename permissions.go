@@ -5,7 +5,7 @@ import "github.com/jonas747/discordgo"
 const AllPermissions int64 = ^0
 
 // CalculatePermissions calculates a members permissions
-func CalculatePermissions(g *GuildState, guildRoles []*discordgo.Role, overwrites []discordgo.PermissionOverwrite, memberID int64, roles []int64) (perms int64) {
+func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites []discordgo.PermissionOverwrite, memberID int64, roles []int64) (perms int64) {
 	if g.OwnerID == memberID {
 		return AllPermissions
 	}

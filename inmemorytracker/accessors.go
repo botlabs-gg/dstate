@@ -88,54 +88,6 @@ func (tracker *InMemoryTracker) getRolePermisisonsLocked(shard *ShardTracker, gu
 	return perms, ok
 }
 
-func (tracker *InMemoryTracker) GetChannel(guildID int64, channelID int64) *dstate.ChannelState {
-	shard := tracker.getGuildShard(guildID)
-	shard.mu.RLock()
-	defer shard.mu.RUnlock()
-
-	if guild, ok := shard.guilds[guildID]; ok {
-		for _, v := range guild.Channels {
-			if v.ID == channelID {
-				return v
-			}
-		}
-	}
-
-	return nil
-}
-
-func (tracker *InMemoryTracker) GetRole(guildID int64, roleID int64) *discordgo.Role {
-	shard := tracker.getGuildShard(guildID)
-	shard.mu.RLock()
-	defer shard.mu.RUnlock()
-
-	if guild, ok := shard.guilds[guildID]; ok {
-		for _, v := range guild.Roles {
-			if v.ID == roleID {
-				return v
-			}
-		}
-	}
-
-	return nil
-}
-
-func (tracker *InMemoryTracker) GetEmoji(guildID int64, emojiID int64) *discordgo.Emoji {
-	shard := tracker.getGuildShard(guildID)
-	shard.mu.RLock()
-	defer shard.mu.RUnlock()
-
-	if guild, ok := shard.guilds[guildID]; ok {
-		for _, v := range guild.Emojis {
-			if v.ID == emojiID {
-				return v
-			}
-		}
-	}
-
-	return nil
-}
-
 func (tracker *InMemoryTracker) getGuildShard(guildID int64) *ShardTracker {
 	shardID := int((guildID >> 22) % tracker.totalShards)
 	return tracker.shards[shardID]

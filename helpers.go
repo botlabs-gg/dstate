@@ -8,17 +8,32 @@ import (
 
 func GuildSetFromGuild(guild *discordgo.Guild) *GuildSet {
 
-	channels := make([]*ChannelState, 0, len(guild.Channels))
+	channels := make([]ChannelState, 0, len(guild.Channels))
 	for _, v := range guild.Channels {
 		channels = append(channels, ChannelStateFromDgo(v))
+	}
+
+	roles := make([]discordgo.Role, len(guild.Roles))
+	for i := range guild.Roles {
+		roles[i] = *guild.Roles[i]
+	}
+
+	emojis := make([]discordgo.Emoji, len(guild.Emojis))
+	for i := range guild.Emojis {
+		emojis[i] = *guild.Emojis[i]
+	}
+
+	voiceStates := make([]discordgo.VoiceState, len(guild.Emojis))
+	for i := range guild.VoiceStates {
+		voiceStates[i] = *guild.VoiceStates[i]
 	}
 
 	return &GuildSet{
 		GuildState:  *GuildStateFromDgo(guild),
 		Channels:    channels,
-		Roles:       guild.Roles,
-		Emojis:      guild.Emojis,
-		VoiceStates: guild.VoiceStates,
+		Roles:       roles,
+		Emojis:      emojis,
+		VoiceStates: voiceStates,
 	}
 }
 
@@ -128,13 +143,13 @@ func MemberStateFromPresence(p *discordgo.PresenceUpdate) *MemberState {
 	}
 }
 
-func ChannelStateFromDgo(c *discordgo.Channel) *ChannelState {
+func ChannelStateFromDgo(c *discordgo.Channel) ChannelState {
 	pos := make([]discordgo.PermissionOverwrite, len(c.PermissionOverwrites))
 	for i, v := range c.PermissionOverwrites {
 		pos[i] = *v
 	}
 
-	return &ChannelState{
+	return ChannelState{
 		ID:                   c.ID,
 		GuildID:              c.GuildID,
 		PermissionOverwrites: pos,
@@ -165,4 +180,47 @@ func GuildStateFromDgo(guild *discordgo.Guild) *GuildState {
 		Name:        guild.Name,
 		Icon:        guild.Icon,
 	}
+}
+
+// DeepCopy makes a deep copy of everything in the guild set
+// this normally isn't needed but could be used to pass it into places such as untrusted scripts
+// that could mutate it.
+func (g *GuildSet) DeepCopy() *GuildSet {
+	gsCop := *g
+
+	// deep copy channels
+	gsCop.Channels = make([]ChannelState, len(g.Channels))
+	for i, v := range g.Channels {
+		gsCop.Channels[i] = v.DeepCopy()
+	}
+
+	// deep copy emojis
+	gsCop.Emojis = make([]discordgo.Emoji, len(g.Emojis))
+	for i := range g.Emojis {
+		emCop := g.Emojis[i]
+		emCop.Roles = make([]int64, len(g.Emojis[i].Roles))
+		copy(emCop.Roles, g.Emojis[i].Roles)
+
+		gsCop.Emojis[i] = emCop
+	}
+
+	// deep copy roles, roles contain only value types so this is a simple operation
+	gsCop.Roles = make([]discordgo.Role, len(g.Roles))
+	copy(gsCop.Roles, g.Roles)
+
+	// deep copy voice states, also only value types
+	gsCop.VoiceStates = make([]discordgo.VoiceState, len(g.VoiceStates))
+	copy(gsCop.VoiceStates, g.VoiceStates)
+
+	return &gsCop
+}
+
+func (cs *ChannelState) DeepCopy() ChannelState {
+	cop := *cs
+
+	cop.PermissionOverwrites = make([]discordgo.PermissionOverwrite, len(cs.PermissionOverwrites))
+	// since the entries are values and not pointers, we can just do a simple copy!
+	copy(cop.PermissionOverwrites, cs.PermissionOverwrites)
+
+	return cop
 }

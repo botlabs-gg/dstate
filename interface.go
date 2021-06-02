@@ -49,10 +49,10 @@ type StateTracker interface {
 type GuildSet struct {
 	GuildState
 
-	Channels    []*ChannelState
-	Roles       []*discordgo.Role
-	Emojis      []*discordgo.Emoji
-	VoiceStates []*discordgo.VoiceState
+	Channels    []ChannelState
+	Roles       []discordgo.Role
+	Emojis      []discordgo.Emoji
+	VoiceStates []discordgo.VoiceState
 }
 
 func (gs *GuildSet) GetMemberPermissions(channelID int64, memberID int64, roles []int64) (perms int64, err error) {
@@ -73,9 +73,9 @@ func (gs *GuildSet) GetMemberPermissions(channelID int64, memberID int64, roles 
 }
 
 func (gs *GuildSet) GetChannel(id int64) *ChannelState {
-	for _, v := range gs.Channels {
-		if v.ID == id {
-			return v
+	for i := range gs.Channels {
+		if gs.Channels[i].ID == id {
+			return &gs.Channels[i]
 		}
 	}
 
@@ -83,9 +83,9 @@ func (gs *GuildSet) GetChannel(id int64) *ChannelState {
 }
 
 func (gs *GuildSet) GetRole(id int64) *discordgo.Role {
-	for _, v := range gs.Roles {
-		if v.ID == id {
-			return v
+	for i := range gs.Roles {
+		if gs.Roles[i].ID == id {
+			return &gs.Roles[i]
 		}
 	}
 
@@ -93,9 +93,9 @@ func (gs *GuildSet) GetRole(id int64) *discordgo.Role {
 }
 
 func (gs *GuildSet) GetVoiceState(userID int64) *discordgo.VoiceState {
-	for _, v := range gs.VoiceStates {
-		if v.UserID == userID {
-			return v
+	for i := range gs.VoiceStates {
+		if gs.VoiceStates[i].UserID == userID {
+			return &gs.VoiceStates[i]
 		}
 	}
 
@@ -103,9 +103,9 @@ func (gs *GuildSet) GetVoiceState(userID int64) *discordgo.VoiceState {
 }
 
 func (gs *GuildSet) GetEmoji(id int64) *discordgo.Emoji {
-	for _, v := range gs.Emojis {
-		if v.ID == id {
-			return v
+	for i := range gs.Emojis {
+		if gs.Emojis[i].ID == id {
+			return &gs.Emojis[i]
 		}
 	}
 
