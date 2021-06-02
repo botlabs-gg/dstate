@@ -4,6 +4,17 @@ import "github.com/jonas747/discordgo"
 
 const AllPermissions int64 = ^0
 
+// Apply this mask to channel permissions to filter them out
+// discord performs no server side validation so this is needed
+// as to not run into some really weird situations
+const ChannelPermsMask = ^(discordgo.PermissionAdministrator |
+	discordgo.PermissionManageServer |
+	discordgo.PermissionChangeNickname |
+	discordgo.PermissionManageServer |
+	discordgo.PermissionManageRoles |
+	discordgo.PermissionKickMembers |
+	discordgo.PermissionBanMembers)
+
 // CalculatePermissions calculates a members permissions
 func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites []discordgo.PermissionOverwrite, memberID int64, roles []int64) (perms int64) {
 	if g.OwnerID == memberID {
@@ -44,8 +55,8 @@ func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites
 	// Apply @everyone overrides from the channel.
 	for _, overwrite := range overwrites {
 		if g.ID == overwrite.ID {
-			perms &= ^int64(overwrite.Deny)
-			perms |= int64(overwrite.Allow)
+			perms &= ^int64(overwrite.Deny & ChannelPermsMask)
+			perms |= int64(overwrite.Allow & ChannelPermsMask)
 			break
 		}
 	}
@@ -57,8 +68,8 @@ func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites
 	for _, overwrite := range overwrites {
 		for _, roleID := range roles {
 			if overwrite.Type == "role" && roleID == overwrite.ID {
-				denies |= int64(overwrite.Deny)
-				allows |= int64(overwrite.Allow)
+				denies |= int64(overwrite.Deny & ChannelPermsMask)
+				allows |= int64(overwrite.Allow & ChannelPermsMask)
 				break
 			}
 		}
@@ -69,8 +80,8 @@ func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites
 
 	for _, overwrite := range overwrites {
 		if overwrite.Type == "member" && overwrite.ID == memberID {
-			perms &= ^int64(overwrite.Deny)
-			perms |= int64(overwrite.Allow)
+			perms &= ^int64(overwrite.Deny & ChannelPermsMask)
+			perms |= int64(overwrite.Allow & ChannelPermsMask)
 			break
 		}
 	}
