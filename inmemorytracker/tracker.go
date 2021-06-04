@@ -249,7 +249,7 @@ func (shard *ShardTracker) handleGuildCreate(gc *discordgo.GuildCreate) {
 		emojis[i] = *gc.Emojis[i]
 	}
 
-	voiceStates := make([]discordgo.VoiceState, len(gc.Emojis))
+	voiceStates := make([]discordgo.VoiceState, len(gc.VoiceStates))
 	for i := range gc.VoiceStates {
 		voiceStates[i] = *gc.VoiceStates[i]
 	}
