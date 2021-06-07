@@ -101,10 +101,10 @@ func TestGCMembers(t *testing.T) {
 	shard := state.getShard(0)
 
 	// createTestState adds a initial member, we overwrite it here for test reliability
-	shard.members[initialTestGuildID] = []*WrappedMember{
-		createGCTestMember(1000, time.Date(2021, 5, 20, 10, 0, 0, 0, time.UTC), nil, nil),
-		createGCTestMember(1001, time.Date(2021, 5, 20, 10, 2, 0, 0, time.UTC), nil, &dstate.PresenceFields{Status: dstate.StatusIdle}),
-		createGCTestMember(1002, time.Date(2021, 5, 20, 10, 4, 0, 0, time.UTC), nil, &dstate.PresenceFields{Status: dstate.StatusOffline}),
+	shard.members[initialTestGuildID] = map[int64]*WrappedMember{
+		1000: createGCTestMember(1000, time.Date(2021, 5, 20, 10, 0, 0, 0, time.UTC), nil, nil),
+		1001: createGCTestMember(1001, time.Date(2021, 5, 20, 10, 2, 0, 0, time.UTC), nil, &dstate.PresenceFields{Status: dstate.StatusIdle}),
+		1002: createGCTestMember(1002, time.Date(2021, 5, 20, 10, 4, 0, 0, time.UTC), nil, &dstate.PresenceFields{Status: dstate.StatusOffline}),
 	}
 
 	// verify the contents now

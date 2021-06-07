@@ -35,11 +35,10 @@ func (tracker *InMemoryTracker) GetMember(guildID int64, memberID int64) *dstate
 }
 
 func (shard *ShardTracker) getMemberLocked(guildID int64, memberID int64) *dstate.MemberState {
-	if ml, ok := shard.members[guildID]; ok {
-		for _, v := range ml {
-			if v.User.ID == memberID {
-				return &v.MemberState
-			}
+
+	if members, ok := shard.members[guildID]; ok {
+		if ms, ok := members[memberID]; ok {
+			return &ms.MemberState
 		}
 	}
 
