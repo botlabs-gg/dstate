@@ -16,8 +16,10 @@ type TrackerConfig struct {
 
 	ChannelMessageLimitsF func(guildID int64) (int, time.Duration)
 
-	// RemoveOfflineMembers      bool
 	RemoveOfflineMembersAfter time.Duration
+
+	// Set this to avoid GC'ing ourselves
+	BotMemberID int64
 }
 
 type InMemoryTracker struct {

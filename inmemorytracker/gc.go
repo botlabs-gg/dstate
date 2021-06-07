@@ -117,6 +117,11 @@ func (shard *ShardTracker) gcMembers(t time.Time, gs *SparseGuildState, maxAge t
 
 	newMembers := make([]*WrappedMember, 0, len(members))
 	for _, v := range members {
+		if v.User.ID == shard.conf.BotMemberID {
+			newMembers = append(newMembers, v)
+			continue
+		}
+
 		if t.Sub(v.lastUpdated) < maxAge || (v.Presence != nil && v.Presence.Status != dstate.StatusOffline) {
 			newMembers = append(newMembers, v)
 		}
