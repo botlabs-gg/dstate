@@ -101,13 +101,18 @@ func (tracker *InMemoryTracker) cloneMembers(guildID int64) []*dstate.MemberStat
 	shard.mu.RLock()
 	defer shard.mu.RUnlock()
 
-	membersCop := make([]*dstate.MemberState, len(shard.members[guildID]))
-	if len(membersCop) < 1 {
+	members, ok := shard.members[guildID]
+	if !ok {
 		return nil
 	}
 
-	for i, v := range shard.members[guildID] {
-		membersCop[i] = &v.MemberState
+	membersCop := make([]*dstate.MemberState, 0, len(members))
+	if cap(membersCop) < 1 {
+		return nil
+	}
+
+	for _, v := range members {
+		membersCop = append(membersCop, &v.MemberState)
 	}
 
 	return membersCop
