@@ -226,7 +226,7 @@ func (tracker *InMemoryTracker) SetGuild(gs *dstate.GuildSet) {
 
 // SetMember allows you to manually add members to the state tracker, for example for caching reasons
 func (tracker *InMemoryTracker) SetMember(ms *dstate.MemberState) {
-	shard := tracker.getGuildShard(ms.User.ID)
+	shard := tracker.getGuildShard(ms.GuildID)
 	if shard == nil {
 		panic("unknown shard")
 	}
