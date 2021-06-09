@@ -699,8 +699,16 @@ func (shard *ShardTracker) handleVoiceStateUpdate(p *discordgo.VoiceStateUpdate)
 				// just changed state
 				newGS.VoiceStates[i] = *p.VoiceState
 			}
+
+			shard.guilds[p.GuildID] = newGS
 			return
 		}
+	}
+
+	if p.ChannelID != 0 {
+		// joined a voice channel
+		newGS.VoiceStates = append(newGS.VoiceStates, *p.VoiceState)
+		shard.guilds[p.GuildID] = newGS
 	}
 }
 
