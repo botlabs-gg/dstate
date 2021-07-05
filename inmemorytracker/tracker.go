@@ -354,9 +354,7 @@ func (shard *ShardTracker) handleChannelCreateUpdate(c *discordgo.Channel) {
 	}
 
 	// channel was not already in state, we need to add it to the channels slice
-	// note: this is safe to do without copying the channels slice as were never handing out
-	// slice references
-	newSparseGuild := gs.copyGuildSet()
+	newSparseGuild := gs.copyChannels()
 	newSparseGuild.Channels = append(newSparseGuild.Channels, dstate.ChannelStateFromDgo(c))
 	sort.Sort(dstate.Channels(newSparseGuild.Channels))
 
@@ -408,10 +406,7 @@ func (shard *ShardTracker) handleRoleCreateUpdate(guildID int64, r *discordgo.Ro
 	}
 
 	// role was not already in state, we need to add it to the roles slice
-	newSparseGuild := gs.copyGuildSet()
-
-	// this does not need copying of the slice because were passing out copies of the slice
-	// and not slice references
+	newSparseGuild := gs.copyRoles()
 	newSparseGuild.Roles = append(newSparseGuild.Roles, *r)
 	sort.Sort(dstate.Roles(newSparseGuild.Roles))
 
