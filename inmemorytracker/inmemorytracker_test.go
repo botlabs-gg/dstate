@@ -15,7 +15,7 @@ const initialTestChannelID = 10
 const initialTestRoleID = 100
 const initialTestMemberID = 1000
 const initialTestThreadID = 10000
-const secondTesThreadID = 50
+const secondTestThreadID = 50
 const initialtestBotID = 100000
 
 func createTestChannel(guildID int64, channelID int64, permissionsOverwrites []*discordgo.PermissionOverwrite) *discordgo.Channel {
@@ -349,41 +349,41 @@ func TestThreadEvents(t *testing.T) {
 		GuildID: initialTestGuildID,
 		Threads: []*discordgo.Channel{
 			{
-				ID:      secondTesThreadID,
+				ID:      secondTestThreadID,
 				GuildID: initialTestGuildID,
 			},
 		},
 	})
 
-	_, ok = shard.threadsGuildID[secondTesThreadID]
+	_, ok = shard.threadsGuildID[secondTestThreadID]
 	if !ok {
 		t.Fatal("shard.threadsGuildID not set on handleThreadListSync")
 	}
 
 	tracker.HandleEvent(testSession, &discordgo.ThreadMemberUpdate{
 		ThreadMember: &discordgo.ThreadMember{
-			ID:            secondTesThreadID,
+			ID:            secondTestThreadID,
 			UserID:        initialtestBotID,
 			JoinTimestamp: discordgo.Timestamp(time.Now().Format(time.RFC3339)),
 			Flags:         1 << 2, // We change the flag just to make sure it went through
 		},
 	})
 
-	memberFlag := tracker.GetGuild(initialTestGuildID).GetChannel(secondTesThreadID).Member.Flags
+	memberFlag := tracker.GetGuild(initialTestGuildID).GetChannel(secondTestThreadID).Member.Flags
 	if memberFlag != 1<<2 {
 		t.Fatal("member not updated on handleThreadMemberUpdate")
 	}
 
 	tracker.HandleEvent(testSession, &discordgo.ThreadCreate{
-		Channel: createTestThread(initialTestGuildID, secondTesThreadID, nil),
+		Channel: createTestThread(initialTestGuildID, secondTestThreadID, nil),
 	})
 
 	tracker.HandleEvent(testSession, &discordgo.ThreadMembersUpdate{
-		ID:      secondTesThreadID,
+		ID:      secondTestThreadID,
 		GuildID: initialTestGuildID,
 		AddedMembers: []*discordgo.ThreadMember{
 			{
-				ID:            secondTesThreadID,
+				ID:            secondTestThreadID,
 				UserID:        initialtestBotID,
 				JoinTimestamp: discordgo.Timestamp(time.Now().Format(time.RFC3339)),
 				Flags:         1 << 3, // We change the flag just to make sure it went through
@@ -391,18 +391,18 @@ func TestThreadEvents(t *testing.T) {
 		},
 	})
 
-	memberFlag = tracker.GetGuild(initialTestGuildID).GetChannel(secondTesThreadID).Member.Flags
+	memberFlag = tracker.GetGuild(initialTestGuildID).GetChannel(secondTestThreadID).Member.Flags
 	if memberFlag != 1<<3 {
 		t.Fatal("member not updated on handleThreadMembersUpdate")
 	}
 
 	tracker.HandleEvent(testSession, &discordgo.ThreadMembersUpdate{
-		ID:                secondTesThreadID,
+		ID:                secondTestThreadID,
 		GuildID:           initialTestGuildID,
 		RemovedMembersIDs: []int64{initialtestBotID},
 	})
 
-	member := tracker.GetGuild(initialTestGuildID).GetChannel(secondTesThreadID).Member
+	member := tracker.GetGuild(initialTestGuildID).GetChannel(secondTestThreadID).Member
 	if member != nil {
 		t.Fatal("member not set to nil")
 	}
