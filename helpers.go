@@ -7,9 +7,12 @@ import (
 )
 
 func GuildSetFromGuild(guild *discordgo.Guild) *GuildSet {
-
-	channels := make([]ChannelState, 0, len(guild.Channels))
+	channels := make([]ChannelState, 0, len(guild.Channels)+len(guild.Threads))
 	for _, v := range guild.Channels {
+		channels = append(channels, ChannelStateFromDgo(v))
+	}
+
+	for _, v := range guild.Threads {
 		channels = append(channels, ChannelStateFromDgo(v))
 	}
 
@@ -73,20 +76,28 @@ func MessageStateFromDgo(m *discordgo.Message) *MessageState {
 		parsedE, _ = m.EditedTimestamp.Parse()
 	}
 
+	var thread *ChannelState
+	if m.Thread != nil {
+		innerThread := ChannelStateFromDgo(m.Thread)
+		thread = &innerThread
+	}
+
 	return &MessageState{
 		ID:        m.ID,
 		GuildID:   m.GuildID,
 		ChannelID: m.ChannelID,
-		Author:    author,
 		Member:    m.Member,
 		Content:   m.Content,
+		Flags:     m.Flags,
 
+		Author:          author,
 		Embeds:          embeds,
 		Mentions:        mentions,
 		Attachments:     attachments,
 		MentionRoles:    m.MentionRoles,
 		ParsedCreatedAt: parsedC,
 		ParsedEditedAt:  parsedE,
+		Thread:          thread,
 	}
 }
 
@@ -161,6 +172,12 @@ func ChannelStateFromDgo(c *discordgo.Channel) ChannelState {
 		NSFW:                 c.NSFW,
 		Position:             c.Position,
 		Bitrate:              c.Bitrate,
+
+		MessageCount:               c.MessageCount,
+		MemberCount:                c.MemberCount,
+		ThreadMetadata:             c.ThreadMetadata,
+		Member:                     c.Member,
+		DefaultAutoArchiveDuration: c.DefaultAutoArchiveDuration,
 	}
 }
 
@@ -217,18 +234,19 @@ func IsRoleAbove(a, b *discordgo.Role) bool {
 // Channels are a collection of Channels
 type Channels []ChannelState
 
-func (r Channels) Len() int {
-	return len(r)
+func (c Channels) Len() int {
+	return len(c)
 }
 
-func (r Channels) Less(i, j int) bool {
-	return r[i].Position < r[j].Position
+func (c Channels) Less(i, j int) bool {
+	return c[i].Position < c[j].Position
 }
 
-func (r Channels) Swap(i, j int) {
-	r[i], r[j] = r[j], r[i]
+func (c Channels) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
 }
 
+// Roles are a collection of Roles
 type Roles []discordgo.Role
 
 func (r Roles) Len() int {

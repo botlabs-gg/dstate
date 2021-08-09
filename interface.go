@@ -56,7 +56,6 @@ type GuildSet struct {
 }
 
 func (gs *GuildSet) GetMemberPermissions(channelID int64, memberID int64, roles []int64) (perms int64, err error) {
-
 	var overwrites []discordgo.PermissionOverwrite
 
 	if channel := gs.GetChannel(channelID); channel != nil {
@@ -194,14 +193,25 @@ type ChannelState struct {
 	RateLimitPerUser int                   `json:"rate_limit_per_user"`
 
 	PermissionOverwrites []discordgo.PermissionOverwrite `json:"permission_overwrites"`
+
+	MessageCount               int                       `json:"message_count"`
+	MemberCount                int                       `json:"member_count"`
+	ThreadMetadata             *discordgo.ThreadMetadata `json:"thread_metadata"`
+	Member                     *discordgo.ThreadMember   `json:"member"`
+	DefaultAutoArchiveDuration discordgo.ArchiveDuration `json:"default_auto_archive_duration"`
 }
 
 func (c *ChannelState) IsPrivate() bool {
-	if c.Type == discordgo.ChannelTypeDM || c.Type == discordgo.ChannelTypeGroupDM {
-		return true
-	}
+	return c.Type == discordgo.ChannelTypeDM || c.Type == discordgo.ChannelTypeGroupDM
+}
 
-	return false
+func (c *ChannelState) IsThread() bool {
+	return c.Type == discordgo.ChannelTypeGuildNewsThread || c.Type == discordgo.ChannelTypeGuildPrivateThread || c.Type == discordgo.ChannelTypeGuildPublicThread
+}
+
+// Mention returns a string which mentions the channel
+func (c *ChannelState) Mention() string {
+	return "<#" + discordgo.StrID(c.ID) + ">"
 }
 
 // A fully cached member
@@ -304,6 +314,9 @@ type MessageState struct {
 
 	ParsedCreatedAt time.Time
 	ParsedEditedAt  time.Time
+
+	Flags  discordgo.MessageFlags
+	Thread *ChannelState
 
 	Deleted bool
 }

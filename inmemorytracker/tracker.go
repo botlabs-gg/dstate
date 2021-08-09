@@ -110,7 +110,7 @@ func (s *SparseGuildState) copyRoles() *SparseGuildState {
 	return &guildSetCopy
 }
 
-// returns a new copy of SparseGuildState and the channels slice
+// returns a new copy of SparseGuildState and the voicestates slice
 func (s *SparseGuildState) copyVoiceStates() *SparseGuildState {
 	guildSetCopy := *s
 
@@ -147,21 +147,28 @@ type ShardTracker struct {
 	// Key is ChannelID
 	messages map[int64]*list.List
 
+	// Key is ThreadID
+	// We need this because on the Thread Member Update event
+	// discord will not tell us from what guild it is from. Thanks, discord.
+	// And we need to know the guild ID in other to update the
+	// thread member object.
+	threadsGuildID map[int64]int64
+
 	conf TrackerConfig
 }
 
 func newShard(conf TrackerConfig, id int) *ShardTracker {
 	return &ShardTracker{
-		shardID:  id,
-		guilds:   make(map[int64]*SparseGuildState),
-		members:  make(map[int64]map[int64]*WrappedMember),
-		messages: make(map[int64]*list.List),
-		conf:     conf,
+		shardID:        id,
+		guilds:         make(map[int64]*SparseGuildState),
+		members:        make(map[int64]map[int64]*WrappedMember),
+		messages:       make(map[int64]*list.List),
+		threadsGuildID: make(map[int64]int64),
+		conf:           conf,
 	}
 }
 
 func (tracker *ShardTracker) HandleEvent(s *discordgo.Session, i interface{}) {
-
 	switch evt := i.(type) {
 	// Guild events
 	case *discordgo.GuildCreate:
@@ -186,6 +193,18 @@ func (tracker *ShardTracker) HandleEvent(s *discordgo.Session, i interface{}) {
 		tracker.handleChannelCreateUpdate(evt.Channel)
 	case *discordgo.ChannelDelete:
 		tracker.handleChannelDelete(evt)
+	case *discordgo.ThreadCreate:
+		tracker.handleChannelCreateUpdate(evt.Channel)
+	case *discordgo.ThreadUpdate:
+		tracker.handleChannelCreateUpdate(evt.Channel)
+	case *discordgo.ThreadDelete:
+		tracker.handleThreadDelete(evt)
+	case *discordgo.ThreadListSync:
+		tracker.handleThreadListSync(evt)
+	case *discordgo.ThreadMembersUpdate:
+		tracker.handleThreadMembersUpdate(evt)
+	case *discordgo.ThreadMemberUpdate:
+		tracker.handleThreadMemberUpdate(evt)
 
 	// Role events
 	case *discordgo.GuildRoleCreate:
@@ -232,10 +251,17 @@ func (shard *ShardTracker) handleGuildCreate(gc *discordgo.GuildCreate) {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
-	channels := make([]dstate.ChannelState, len(gc.Channels))
-	for i, v := range gc.Channels {
-		channels[i] = dstate.ChannelStateFromDgo(v)
-		channels[i].GuildID = gc.ID
+	channels := make([]dstate.ChannelState, 0, len(gc.Channels)+len(gc.Threads))
+	for _, v := range gc.Channels {
+		newChannel := dstate.ChannelStateFromDgo(v)
+		newChannel.GuildID = gc.ID
+		channels = append(channels, newChannel)
+	}
+
+	for _, v := range gc.Threads {
+		newChannel := dstate.ChannelStateFromDgo(v)
+		newChannel.GuildID = gc.ID
+		channels = append(channels, newChannel)
 	}
 
 	sort.Sort(dstate.Channels(channels))
@@ -343,6 +369,10 @@ func (shard *ShardTracker) handleChannelCreateUpdate(c *discordgo.Channel) {
 		return
 	}
 
+	if c.IsThread() {
+		shard.threadsGuildID[c.ID] = c.GuildID
+	}
+
 	for i := range gs.Channels {
 		if gs.Channels[i].ID == c.ID {
 			newSparseGuild := gs.copyChannels()
@@ -377,6 +407,195 @@ func (shard *ShardTracker) handleChannelDelete(c *discordgo.ChannelDelete) {
 			newSparseGuild := gs.copyChannels()
 			newSparseGuild.Channels = append(newSparseGuild.Channels[:i], newSparseGuild.Channels[i+1:]...)
 			shard.guilds[c.GuildID] = newSparseGuild
+			return
+		}
+	}
+}
+
+// handleThreadDelete works exactly the same as handleChannelDelete.
+// We just need a different func because the data type is different.
+func (shard *ShardTracker) handleThreadDelete(c *discordgo.ThreadDelete) {
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	delete(shard.messages, c.ID)
+	delete(shard.threadsGuildID, c.ID)
+
+	gs, ok := shard.guilds[c.GuildID]
+	if !ok {
+		return
+	}
+
+	for i, v := range gs.Channels {
+		if v.ID == c.ID {
+			newSparseGuild := gs.copyChannels()
+			newSparseGuild.Channels = append(newSparseGuild.Channels[:i], newSparseGuild.Channels[i+1:]...)
+			shard.guilds[c.GuildID] = newSparseGuild
+			return
+		}
+	}
+}
+
+// handleThreadListSync handles the Thread List Sync event from discord.
+// This event is sent when we gain access to a channel.
+func (shard *ShardTracker) handleThreadListSync(evt *discordgo.ThreadListSync) {
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	gs, ok := shard.guilds[evt.GuildID]
+	if !ok {
+		return
+	}
+
+	// evt.ChannelIDs are the parent Channel IDs whose threads are being synced.
+	// If this is omitted, then threads were synced for the entire guild.
+	// This slice may contain Channel IDs that have no active threads as well,
+	// so we need to clear the data from those.
+	for _, parentChannelID := range evt.ChannelIDs {
+		for i, stateChannel := range gs.Channels {
+			if stateChannel.IsThread() && stateChannel.ParentID == parentChannelID && !stateChannel.ThreadMetadata.Archived {
+				// Delete the messages
+				delete(shard.messages, stateChannel.ID)
+
+				// Remove the thread
+				newSparseGuild := gs.copyChannels()
+				newSparseGuild.Channels = append(newSparseGuild.Channels[:i], newSparseGuild.Channels[i+1:]...)
+				shard.guilds[evt.GuildID] = newSparseGuild
+				break
+			}
+		}
+	}
+
+	if len(evt.ChannelIDs) > 0 {
+		// We fetch the guild again since it was updated
+		gs = shard.guilds[evt.GuildID]
+	}
+
+	// evt.Threads are all active threads in the given channels that we can access
+	// We now loop over all the threads on this event and add them to the state.
+	for _, c := range evt.Threads {
+		shard.threadsGuildID[c.ID] = evt.GuildID
+
+		var found bool
+
+		// First we see if we have this thread in state.
+		// If it is, we update it.
+		for i, stateChannel := range gs.Channels {
+			if stateChannel.ID == c.ID {
+				newSparseGuild := gs.copyChannels()
+				newSparseGuild.Channels[i] = dstate.ChannelStateFromDgo(c)
+
+				// evt.Members are all thread member objects from the synced threads
+				// for the current user, indicating which threads we have been added to.
+				// we check against our ID and set us as the member.
+				for _, member := range evt.Members {
+					if member.ID == stateChannel.ID {
+						newSparseGuild.Channels[i].Member = member
+						break
+					}
+				}
+
+				sort.Sort(dstate.Channels(newSparseGuild.Channels))
+				shard.guilds[c.GuildID] = newSparseGuild
+				found = true
+				break
+			}
+		}
+
+		// If thread is not in state, we add it.
+		if !found {
+			newSparseGuild := gs.copyChannels()
+			newChannel := dstate.ChannelStateFromDgo(c)
+
+			// evt.Members are all thread member objects from the synced threads
+			// for the current user, indicating which threads we have been added to.
+			// we check against our ID and set us as the member.
+			for _, member := range evt.Members {
+				if member.ID == c.ID {
+					newChannel.Member = member
+					break
+				}
+			}
+
+			newSparseGuild.Channels = append(newSparseGuild.Channels, newChannel)
+			sort.Sort(dstate.Channels(newSparseGuild.Channels))
+			shard.guilds[c.GuildID] = newSparseGuild
+		}
+	}
+}
+
+// handleThreadMembersUpdate handles the Thread Members Update event from discord.
+// This is sent when anyone is added to or removed from a thread.
+// If we do not have the GUILD_MEMBERS Gateway Intent, then this event will only be sent
+// if we were added to or removed from the thread.
+func (shard *ShardTracker) handleThreadMembersUpdate(evt *discordgo.ThreadMembersUpdate) {
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	gs, ok := shard.guilds[evt.GuildID]
+	if !ok {
+		return
+	}
+
+	shard.threadsGuildID[evt.ID] = evt.GuildID
+
+	// We loop over the state and try to find this channel.
+	// If the channel is found, we update our member object accordingly.
+	// The member object will be set to nil if we are removed from the thread.
+	for i := range gs.Channels {
+		if gs.Channels[i].ID == evt.ID {
+			newSparseGuild := gs.copyChannels()
+			newSparseGuild.Channels[i].MemberCount = evt.MemberCount
+
+			var removed bool
+			for _, memberID := range evt.RemovedMembersIDs {
+				if memberID == shard.conf.BotMemberID {
+					newSparseGuild.Channels[i].Member = nil
+					removed = true
+					break
+				}
+			}
+
+			// Why loop if we know we were not added? :)
+			if !removed {
+				for _, member := range evt.AddedMembers {
+					if member.ID == shard.conf.BotMemberID {
+						newSparseGuild.Channels[i].Member = member
+						break
+					}
+				}
+			}
+
+			sort.Sort(dstate.Channels(newSparseGuild.Channels))
+			shard.guilds[evt.GuildID] = newSparseGuild
+			return
+		}
+	}
+}
+
+// handleThreadMemberUpdate handles the Thread Member Update event from discord.
+// This is sent when the thread member object for us is updated.
+// The inner payload is a thread member object.
+func (shard *ShardTracker) handleThreadMemberUpdate(evt *discordgo.ThreadMemberUpdate) {
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	guildID, ok := shard.threadsGuildID[evt.ID]
+	if !ok {
+		return
+	}
+
+	gs, ok := shard.guilds[guildID]
+	if !ok {
+		return
+	}
+
+	for i := range gs.Channels {
+		if gs.Channels[i].ID == evt.ID {
+			newSparseGuild := gs.copyChannels()
+			newSparseGuild.Channels[i].Member = evt.ThreadMember
+			sort.Sort(dstate.Channels(newSparseGuild.Channels))
+			shard.guilds[guildID] = newSparseGuild
 			return
 		}
 	}
@@ -460,7 +679,6 @@ func (shard *ShardTracker) handleMemberUpdate(m *discordgo.Member) {
 
 // assumes state is locked
 func (shard *ShardTracker) innerHandleMemberUpdate(ms *dstate.MemberState) {
-
 	wrapped := &WrappedMember{
 		lastUpdated: time.Now(),
 		MemberState: *ms,
@@ -549,6 +767,7 @@ func (shard *ShardTracker) handleMessageUpdate(m *discordgo.MessageUpdate) {
 						cop.Mentions[i] = *v
 					}
 				}
+
 				if m.Embeds != nil {
 					cop.Embeds = make([]discordgo.MessageEmbed, len(m.Embeds))
 					for i, v := range m.Embeds {
@@ -569,6 +788,11 @@ func (shard *ShardTracker) handleMessageUpdate(m *discordgo.MessageUpdate) {
 
 				if m.MentionRoles != nil {
 					cop.MentionRoles = m.MentionRoles
+				}
+
+				if m.Thread != nil {
+					t := dstate.ChannelStateFromDgo(m.Thread)
+					cop.Thread = &t
 				}
 
 				e.Value = &cop
@@ -641,7 +865,6 @@ func (shard *ShardTracker) handlePresenceUpdate(p *discordgo.PresenceUpdate) {
 }
 
 func (shard *ShardTracker) innerHandlePresenceUpdate(ms *dstate.MemberState, skipFullUserCheck bool) {
-
 	wrapped := &WrappedMember{
 		lastUpdated: time.Now(),
 		MemberState: *ms,
@@ -743,4 +966,5 @@ func (shard *ShardTracker) reset() {
 	shard.guilds = make(map[int64]*SparseGuildState)
 	shard.members = make(map[int64]map[int64]*WrappedMember)
 	shard.messages = make(map[int64]*list.List)
+	shard.threadsGuildID = make(map[int64]int64)
 }
