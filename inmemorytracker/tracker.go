@@ -262,6 +262,8 @@ func (shard *ShardTracker) handleGuildCreate(gc *discordgo.GuildCreate) {
 		newChannel := dstate.ChannelStateFromDgo(v)
 		newChannel.GuildID = gc.ID
 		channels = append(channels, newChannel)
+
+		shard.threadsGuildID[v.ID] = gc.ID
 	}
 
 	sort.Sort(dstate.Channels(channels))
@@ -348,6 +350,7 @@ func (shard *ShardTracker) handleGuildDelete(gd *discordgo.GuildDelete) {
 		if existing, ok := shard.guilds[gd.ID]; ok {
 			for _, v := range existing.Channels {
 				delete(shard.messages, v.ID)
+				delete(shard.threadsGuildID, v.ID)
 			}
 		}
 
