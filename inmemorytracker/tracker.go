@@ -460,6 +460,9 @@ func (shard *ShardTracker) handleThreadListSync(evt *discordgo.ThreadListSync) {
 				// Delete the messages
 				delete(shard.messages, stateChannel.ID)
 
+				// Delete threadsGuildID
+				delete(shard.threadsGuildID, stateChannel.ID)
+
 				// Remove the thread
 				newSparseGuild := gs.copyChannels()
 				newSparseGuild.Channels = append(newSparseGuild.Channels[:i], newSparseGuild.Channels[i+1:]...)
@@ -487,17 +490,6 @@ func (shard *ShardTracker) handleThreadListSync(evt *discordgo.ThreadListSync) {
 			if stateChannel.ID == c.ID {
 				newSparseGuild := gs.copyChannels()
 				newSparseGuild.Channels[i] = dstate.ChannelStateFromDgo(c)
-
-				// evt.Members are all thread member objects from the synced threads
-				// for the current user, indicating which threads we have been added to.
-				// we check against our ID and set us as the member.
-				for _, member := range evt.Members {
-					if member.ID == stateChannel.ID {
-						newSparseGuild.Channels[i].Member = member
-						break
-					}
-				}
-
 				sort.Sort(dstate.Channels(newSparseGuild.Channels))
 				shard.guilds[c.GuildID] = newSparseGuild
 				found = true
@@ -509,20 +501,26 @@ func (shard *ShardTracker) handleThreadListSync(evt *discordgo.ThreadListSync) {
 		if !found {
 			newSparseGuild := gs.copyChannels()
 			newChannel := dstate.ChannelStateFromDgo(c)
-
-			// evt.Members are all thread member objects from the synced threads
-			// for the current user, indicating which threads we have been added to.
-			// we check against our ID and set us as the member.
-			for _, member := range evt.Members {
-				if member.ID == c.ID {
-					newChannel.Member = member
-					break
-				}
-			}
-
 			newSparseGuild.Channels = append(newSparseGuild.Channels, newChannel)
 			sort.Sort(dstate.Channels(newSparseGuild.Channels))
 			shard.guilds[c.GuildID] = newSparseGuild
+		}
+	}
+
+	// We fetch the guild again since it was updated
+	gs = shard.guilds[evt.GuildID]
+
+	// evt.Members are all thread member objects from the synced threads
+	// for the current user, indicating which threads we have been added to.
+	// we check against our ID and set us as the member.
+	for _, member := range evt.Members {
+		for i, c := range gs.Channels {
+			if c.ID == member.ID {
+				newSparseGuild := gs.copyChannels()
+				newSparseGuild.Channels[i].Member = member
+				shard.guilds[c.GuildID] = newSparseGuild
+				break
+			}
 		}
 	}
 }
@@ -562,7 +560,7 @@ func (shard *ShardTracker) handleThreadMembersUpdate(evt *discordgo.ThreadMember
 			// Why loop if we know we were not added? :)
 			if !removed {
 				for _, member := range evt.AddedMembers {
-					if member.ID == shard.conf.BotMemberID {
+					if member.UserID == shard.conf.BotMemberID {
 						newSparseGuild.Channels[i].Member = member
 						break
 					}

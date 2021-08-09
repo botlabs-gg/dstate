@@ -18,6 +18,16 @@ func createTestMessage(id int64, ts time.Time) *discordgo.Message {
 	}
 }
 
+func createTestMessageThread(id int64, ts time.Time) *discordgo.Message {
+	return &discordgo.Message{
+		ID:        id,
+		ChannelID: initialTestThreadID,
+		GuildID:   initialTestGuildID,
+		Content:   "test message",
+		Timestamp: discordgo.Timestamp(ts.Format(time.RFC3339)),
+	}
+}
+
 func TestGCMessages(t *testing.T) {
 	state := createTestState(TrackerConfig{
 		ChannelMessageLen:         2,
@@ -54,6 +64,44 @@ func TestGCMessages(t *testing.T) {
 	// run yet another one because why not
 	shard.gcTick(time.Date(2021, 5, 20, 12, 0, 3, 0, time.UTC), nil)
 	verifyMessages(t, state, initialTestChannelID, []int64{})
+}
+
+func TestGCMessagesThread(t *testing.T) {
+	state := createTestState(TrackerConfig{
+		ChannelMessageLen:         2,
+		ChannelMessageDur:         time.Hour,
+		RemoveOfflineMembersAfter: time.Hour,
+	})
+	shard := state.getShard(0)
+
+	state.HandleEvent(testSession, &discordgo.MessageCreate{
+		Message: createTestMessageThread(10000, time.Date(2021, 5, 20, 10, 0, 0, 0, time.UTC)),
+	})
+
+	state.HandleEvent(testSession, &discordgo.MessageCreate{
+		Message: createTestMessageThread(10001, time.Date(2021, 5, 20, 10, 0, 2, 0, time.UTC)),
+	})
+
+	// verify the contents now
+	verifyMessages(t, state, initialTestThreadID, []int64{10000, 10001})
+
+	// add another message that will be GC'd soon
+	state.HandleEvent(testSession, &discordgo.MessageCreate{
+		Message: createTestMessageThread(10002, time.Date(2021, 5, 20, 10, 0, 4, 0, time.UTC)),
+	})
+	verifyMessages(t, state, initialTestThreadID, []int64{10000, 10001, 10002})
+
+	// run a gc, verifying max len works
+	shard.gcTick(time.Date(2021, 5, 20, 10, 0, 2, 0, time.UTC), nil)
+	verifyMessages(t, state, initialTestThreadID, []int64{10001, 10002})
+
+	// run a gc verifying max age
+	shard.gcTick(time.Date(2021, 5, 20, 11, 0, 3, 0, time.UTC), nil)
+	verifyMessages(t, state, initialTestThreadID, []int64{10002})
+
+	// run yet another one because why not
+	shard.gcTick(time.Date(2021, 5, 20, 12, 0, 3, 0, time.UTC), nil)
+	verifyMessages(t, state, initialTestThreadID, []int64{})
 }
 
 func verifyMessages(t *testing.T, state *InMemoryTracker, channelID int64, expectedResult []int64) {
