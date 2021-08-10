@@ -195,3 +195,105 @@ OUTER:
 		t.Fatalf("couldn't find member: %d", expecting)
 	}
 }
+
+func TestGCThread(t *testing.T) {
+	state := createTestState(TrackerConfig{
+		ChannelMessageLen:         2,
+		ChannelMessageDur:         time.Hour,
+		RemoveOfflineMembersAfter: time.Hour,
+	})
+
+	state.HandleEvent(testSession, &discordgo.ThreadListSync{
+		GuildID:    initialTestGuildID,
+		ChannelIDs: []int64{initialTestChannelID},
+		Members: []*discordgo.ThreadMember{
+			{
+				ID:            initialTestThreadID,
+				UserID:        initialtestBotID,
+				JoinTimestamp: discordgo.Timestamp(time.Now().Format(time.RFC3339)),
+				Flags:         1 << 1,
+			},
+		},
+		Threads: []*discordgo.Channel{
+			createTestThread(initialTestGuildID, initialTestThreadID, nil),
+		},
+	})
+
+	state.HandleEvent(testSession, &discordgo.ThreadUpdate{
+		Channel: &discordgo.Channel{
+			ID:      initialTestThreadID,
+			GuildID: initialTestGuildID,
+			Type:    discordgo.ChannelTypeGuildPublicThread,
+			ThreadMetadata: &discordgo.ThreadMetadata{
+				Archived: true,
+			},
+		},
+	})
+
+	shard := state.getShard(0)
+	shard.gcTick(time.Now(), []int64{initialTestGuildID})
+
+	_, ok := shard.threadsGuildID[initialTestThreadID]
+	if ok {
+		t.Fatal("shard.ThreadsGuildID not removed after tick")
+	}
+
+	_, ok = shard.messages[initialTestThreadID]
+	if ok {
+		t.Fatal("shard.messages not removed after tick")
+	}
+
+	thread := state.GetGuild(initialTestGuildID).GetChannel(initialTestThreadID)
+	if thread != nil {
+		t.Fatal("thread not removed after tick")
+	}
+
+	state.HandleEvent(testSession, &discordgo.ThreadUpdate{
+		Channel: &discordgo.Channel{
+			ID:      initialTestThreadID,
+			GuildID: initialTestGuildID,
+			Type:    discordgo.ChannelTypeGuildPublicThread,
+			ThreadMetadata: &discordgo.ThreadMetadata{
+				Archived: false,
+			},
+		},
+	})
+
+	shard.gcTick(time.Now(), []int64{initialTestGuildID})
+
+	_, ok = shard.threadsGuildID[initialTestThreadID]
+	if !ok {
+		t.Fatal("shard.ThreadsGuildID not added after tick")
+	}
+
+	thread = state.GetGuild(initialTestGuildID).GetChannel(initialTestThreadID)
+	if thread == nil {
+		t.Fatal("thread not added after tick")
+	}
+
+	state.HandleEvent(testSession, &discordgo.MessageCreate{
+		Message: &discordgo.Message{
+			ID:        123,
+			ChannelID: initialTestThreadID,
+			GuildID:   initialTestGuildID,
+			Content:   "test message",
+		},
+	})
+
+	_, ok = shard.messages[initialTestThreadID]
+	if !ok {
+		t.Fatal("Message not received")
+	}
+
+	shard.gcTick(time.Now(), []int64{initialTestGuildID})
+
+	_, ok = shard.messages[initialTestThreadID]
+	if !ok {
+		t.Fatal("Message not present after tick")
+	}
+
+	thread = state.GetGuild(initialTestGuildID).GetChannel(initialTestThreadID)
+	if thread == nil {
+		t.Fatal("thread not in state after tick")
+	}
+}

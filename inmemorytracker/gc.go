@@ -53,8 +53,17 @@ func (shard *ShardTracker) gcGuild(t time.Time, gs *SparseGuildState) {
 		return // nothing to do, no limits
 	}
 
-	for _, v := range gs.Channels {
+	for i, v := range gs.Channels {
 		shard.gcGuildChannel(t, gs, v.ID, limitLen, limitAge)
+
+		if v.IsThread() && v.ThreadMetadata.Archived {
+			delete(shard.threadsGuildID, v.ID)
+			delete(shard.messages, v.ID)
+
+			newSparseGuild := gs.copyChannels()
+			newSparseGuild.Channels = append(newSparseGuild.Channels[:i], newSparseGuild.Channels[i+1:]...)
+			shard.guilds[v.GuildID] = newSparseGuild
+		}
 	}
 
 	if shard.conf.RemoveOfflineMembersAfter > 0 {
