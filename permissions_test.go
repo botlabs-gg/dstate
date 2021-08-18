@@ -3,7 +3,7 @@ package dstate
 import (
 	"testing"
 
-	"github.com/jonas747/discordgo"
+	"github.com/jonas747/discordgo/v2"
 )
 
 func TestGuildPermissions(t *testing.T) {
@@ -74,19 +74,19 @@ func TestChannelPermissions(t *testing.T) {
 
 	overwrites := []discordgo.PermissionOverwrite{
 		{
-			Type:  "role",
+			Type:  discordgo.PermissionOverwriteTypeRole,
 			ID:    12,
 			Deny:  discordgo.PermissionSendMessages,
 			Allow: discordgo.PermissionAdministrator,
 		},
 		{
-			Type:  "member",
+			Type:  discordgo.PermissionOverwriteTypeMember,
 			ID:    100,
 			Allow: discordgo.PermissionEmbedLinks,
 			Deny:  discordgo.PermissionAddReactions,
 		},
 		{
-			Type:  "role",
+			Type:  discordgo.PermissionOverwriteTypeRole,
 			ID:    1,
 			Allow: discordgo.PermissionSendMessages | discordgo.PermissionAddReactions,
 		},

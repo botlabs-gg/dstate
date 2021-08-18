@@ -3,7 +3,7 @@ package dstate
 import (
 	"time"
 
-	"github.com/jonas747/discordgo"
+	"github.com/jonas747/discordgo/v2"
 )
 
 func GuildSetFromGuild(guild *discordgo.Guild) *GuildSet {
@@ -183,11 +183,9 @@ func GuildStateFromDgo(guild *discordgo.Guild) *GuildState {
 		Description:                 guild.Description,
 		PreferredLocale:             guild.PreferredLocale,
 		AfkChannelID:                guild.AfkChannelID,
-		EmbedChannelID:              guild.EmbedChannelID,
 		Splash:                      guild.Splash,
 		AfkTimeout:                  guild.AfkTimeout,
 		VerificationLevel:           guild.VerificationLevel,
-		EmbedEnabled:                guild.EmbedEnabled,
 		Large:                       guild.Large,
 		DefaultMessageNotifications: guild.DefaultMessageNotifications,
 		MaxPresences:                guild.MaxPresences,

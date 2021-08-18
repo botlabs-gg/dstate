@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jonas747/discordgo"
+	"github.com/jonas747/discordgo/v2"
 )
 
 // The state system for yags
@@ -128,9 +128,6 @@ type GuildState struct {
 	// The ID of the AFK voice channel.
 	AfkChannelID int64 `json:"afk_channel_id,string"`
 
-	// The ID of the embed channel ID, used for embed widgets.
-	EmbedChannelID int64 `json:"embed_channel_id,string"`
-
 	// The hash of the guild's splash.
 	Splash string `json:"splash"`
 
@@ -139,9 +136,6 @@ type GuildState struct {
 
 	// The verification level required for the guild.
 	VerificationLevel discordgo.VerificationLevel `json:"verification_level"`
-
-	// Whether the guild has embedding enabled.
-	EmbedEnabled bool `json:"embed_enabled"`
 
 	// Whether the guild is considered large. This is
 	// determined by a member threshold in the identify packet,

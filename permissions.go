@@ -1,6 +1,6 @@
 package dstate
 
-import "github.com/jonas747/discordgo"
+import "github.com/jonas747/discordgo/v2"
 
 const AllPermissions int64 = ^0
 
@@ -67,7 +67,7 @@ func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites
 	// Member overwrites can override role overrides, so do two passes with roles first
 	for _, overwrite := range overwrites {
 		for _, roleID := range roles {
-			if overwrite.Type == "role" && roleID == overwrite.ID {
+			if overwrite.Type == discordgo.PermissionOverwriteTypeRole && roleID == overwrite.ID {
 				denies |= int64(overwrite.Deny & ChannelPermsMask)
 				allows |= int64(overwrite.Allow & ChannelPermsMask)
 				break
@@ -79,7 +79,7 @@ func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites
 	perms |= int64(allows)
 
 	for _, overwrite := range overwrites {
-		if overwrite.Type == "member" && overwrite.ID == memberID {
+		if overwrite.Type == discordgo.PermissionOverwriteTypeMember && overwrite.ID == memberID {
 			perms &= ^int64(overwrite.Deny & ChannelPermsMask)
 			perms |= int64(overwrite.Allow & ChannelPermsMask)
 			break
