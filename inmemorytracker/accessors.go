@@ -2,7 +2,7 @@ package inmemorytracker
 
 import (
 	"github.com/jonas747/discordgo"
-	"github.com/jonas747/dstate/v3"
+	"github.com/jonas747/dstate/v4"
 )
 
 var _ dstate.StateTracker = (*InMemoryTracker)(nil)

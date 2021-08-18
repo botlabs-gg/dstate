@@ -4,7 +4,7 @@ import (
 	"container/list"
 	"time"
 
-	"github.com/jonas747/dstate/v3"
+	"github.com/jonas747/dstate/v4"
 )
 
 func (shard *ShardTracker) runGcLoop(interval time.Duration) {
