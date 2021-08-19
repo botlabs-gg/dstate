@@ -442,6 +442,16 @@ func (shard *ShardTracker) handleThreadDelete(c *discordgo.ThreadDelete) {
 // handleThreadListSync handles the Thread List Sync event from discord.
 // This event is sent when we gain access to a channel.
 func (shard *ShardTracker) handleThreadListSync(evt *discordgo.ThreadListSync) {
+	// evt.ChannelIDs are the parent Channel IDs whose threads are being synced.
+	// If this is omitted, then threads were synced for the entire guild.
+	// This slice may contain Channel IDs that have no active threads as well,
+	// so we need to clear the data from those.
+	//
+	// evt.Threads are all active threads in the given channels that we can access
+	//
+	// evt.Members are all thread member objects from the synced threads
+	// for the current user, indicating which threads we have been added to
+
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
@@ -450,12 +460,13 @@ func (shard *ShardTracker) handleThreadListSync(evt *discordgo.ThreadListSync) {
 		return
 	}
 
-	// evt.ChannelIDs are the parent Channel IDs whose threads are being synced.
-	// If this is omitted, then threads were synced for the entire guild.
-	// This slice may contain Channel IDs that have no active threads as well,
-	// so we need to clear the data from those.
-	for i, stateChannel := range gs.Channels {
+	var index int
+	newSparseGuild := gs.copyChannels()
+OUTER:
+	for _, stateChannel := range newSparseGuild.Channels {
 		if !stateChannel.IsThread() || stateChannel.ThreadMetadata.Archived {
+			newSparseGuild.Channels[index] = stateChannel
+			index++
 			continue
 		}
 
@@ -465,11 +476,6 @@ func (shard *ShardTracker) handleThreadListSync(evt *discordgo.ThreadListSync) {
 
 			// Delete threadsGuildID
 			delete(shard.threadsGuildID, stateChannel.ID)
-
-			// Remove the thread
-			newSparseGuild := gs.copyChannels()
-			newSparseGuild.Channels = append(newSparseGuild.Channels[:i], newSparseGuild.Channels[i+1:]...)
-			shard.guilds[evt.GuildID] = newSparseGuild
 			continue
 		}
 
@@ -480,68 +486,37 @@ func (shard *ShardTracker) handleThreadListSync(evt *discordgo.ThreadListSync) {
 
 				// Delete threadsGuildID
 				delete(shard.threadsGuildID, stateChannel.ID)
-
-				// Remove the thread
-				newSparseGuild := gs.copyChannels()
-				newSparseGuild.Channels = append(newSparseGuild.Channels[:i], newSparseGuild.Channels[i+1:]...)
-				shard.guilds[evt.GuildID] = newSparseGuild
-				break
-			}
-		}
-	}
-
-	// We fetch the guild again since it was updated
-	gs = shard.guilds[evt.GuildID]
-
-	// evt.Threads are all active threads in the given channels that we can access
-	// We now loop over all the threads on this event and add them to the state.
-	for _, c := range evt.Threads {
-		shard.threadsGuildID[c.ID] = evt.GuildID
-
-		var found bool
-
-		// First we see if we have this thread in state.
-		// If it is, we update it.
-		for i, stateChannel := range gs.Channels {
-			if stateChannel.ID == c.ID {
-				newSparseGuild := gs.copyChannels()
-				newSparseGuild.Channels[i] = dstate.ChannelStateFromDgo(c)
-				sort.Sort(dstate.Channels(newSparseGuild.Channels))
-				shard.guilds[c.GuildID] = newSparseGuild
-				found = true
-				break
+				continue OUTER
 			}
 		}
 
-		// If thread is not in state, we add it.
-		if !found {
-			newSparseGuild := gs.copyChannels()
-			newChannel := dstate.ChannelStateFromDgo(c)
+		newSparseGuild.Channels[index] = stateChannel
+		index++
+	}
+	newSparseGuild.Channels = newSparseGuild.Channels[:index]
 
-			newSparseGuild.Channels = append(newSparseGuild.Channels, newChannel)
-			sort.Sort(dstate.Channels(newSparseGuild.Channels))
-			shard.guilds[c.GuildID] = newSparseGuild
+	for _, t := range evt.Threads {
+		shard.threadsGuildID[t.ID] = evt.GuildID
+		newChannel := dstate.ChannelStateFromDgo(t)
+		newSparseGuild.Channels = append(newSparseGuild.Channels, newChannel)
+	}
+
+	for i, c := range newSparseGuild.Channels {
+		if !c.IsThread() {
+			continue
 		}
-	}
 
-	if len(evt.Threads) > 0 {
-		// We fetch the guild again since it was updated
-		gs = shard.guilds[evt.GuildID]
-	}
-
-	// evt.Members are all thread member objects from the synced threads
-	// for the current user, indicating which threads we have been added to.
-	// we check against our ID and set us as the member.
-	for _, member := range evt.Members {
-		for i, c := range gs.Channels {
+		for _, member := range evt.Members {
 			if c.ID == member.ID {
-				newSparseGuild := gs.copyChannels()
 				newSparseGuild.Channels[i].Member = member
-				shard.guilds[c.GuildID] = newSparseGuild
 				break
 			}
 		}
 	}
+
+	sort.Sort(dstate.Channels(newSparseGuild.Channels))
+	shard.guilds[evt.GuildID] = newSparseGuild
+
 }
 
 // handleThreadMembersUpdate handles the Thread Members Update event from discord.
