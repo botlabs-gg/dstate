@@ -216,6 +216,7 @@ func TestGCThread(t *testing.T) {
 		},
 		Threads: []*discordgo.Channel{
 			createTestThread(initialTestGuildID, initialTestThreadID, nil),
+			createTestThread(initialTestGuildID, initialTestThreadID, nil, initialTestChannelID),
 		},
 	})
 

@@ -17,6 +17,10 @@ const initialTestMemberID = 1000
 const initialTestThreadID = 10000
 const secondTestThreadID = 50
 const initialtestBotID = 100000
+const extraThreadOne = 2
+const extraThreadTwo = 20
+const extraChannelOne = 3
+const extraChannelTwo = 30
 
 func createTestChannel(guildID int64, channelID int64, permissionsOverwrites []*discordgo.PermissionOverwrite) *discordgo.Channel {
 	return &discordgo.Channel{
@@ -28,11 +32,11 @@ func createTestChannel(guildID int64, channelID int64, permissionsOverwrites []*
 	}
 }
 
-func createTestThread(guildID int64, channelID int64, permissionsOverwrites []*discordgo.PermissionOverwrite) *discordgo.Channel {
+func createTestThread(guildID int64, channelID int64, permissionsOverwrites []*discordgo.PermissionOverwrite, parentID int64) *discordgo.Channel {
 	return &discordgo.Channel{
 		ID:                   channelID,
 		GuildID:              guildID,
-		ParentID:             initialTestChannelID,
+		ParentID:             parentID,
 		ThreadMetadata:       &discordgo.ThreadMetadata{},
 		Name:                 "test thread-" + strconv.FormatInt(channelID, 10),
 		Type:                 discordgo.ChannelTypeGuildPublicThread,
@@ -69,16 +73,21 @@ func createTestState(conf TrackerConfig) *InMemoryTracker {
 			OwnerID:     initialTestMemberID,
 			MemberCount: 1,
 			Members: []*discordgo.Member{
-				createTestMember(0, initialTestMemberID, []int64{initialTestRoleID}),
+				createTestMember(initialTestGuildID, initialTestMemberID, []int64{initialTestRoleID}),
 			},
 			Presences: []*discordgo.Presence{
 				{User: createTestUser(initialTestMemberID)},
 			},
 			Channels: []*discordgo.Channel{
-				createTestChannel(0, initialTestChannelID, nil),
+				createTestChannel(initialTestGuildID, initialTestChannelID, nil),
+				createTestChannel(initialTestGuildID, extraChannelOne, nil),
+				createTestChannel(initialTestGuildID, extraChannelTwo, nil),
 			},
 			Threads: []*discordgo.Channel{
-				createTestThread(0, initialTestThreadID, nil),
+				createTestThread(initialTestGuildID, initialTestThreadID, nil, initialTestChannelID),
+				createTestThread(initialTestGuildID, secondTestThreadID, nil, initialTestChannelID),
+				createTestThread(initialTestGuildID, extraThreadOne, nil, extraChannelOne),
+				createTestThread(initialTestGuildID, extraThreadTwo, nil, extraChannelTwo),
 			},
 			Roles: []*discordgo.Role{
 				{ID: initialTestRoleID},
@@ -98,7 +107,7 @@ func createTestStateGuildDelete(conf TrackerConfig) *InMemoryTracker {
 			OwnerID:     initialTestMemberID,
 			MemberCount: 1,
 			Threads: []*discordgo.Channel{
-				createTestThread(0, initialTestThreadID, nil),
+				createTestThread(initialTestGuildID, initialTestThreadID, nil, initialTestChannelID),
 			},
 		},
 	})
@@ -196,7 +205,7 @@ func TestMemberAdd(t *testing.T) {
 	})
 
 	tracker.HandleEvent(testSession, &discordgo.GuildMemberAdd{
-		Member: createTestMember(1, 1001, nil),
+		Member: createTestMember(initialTestGuildID, 1001, nil),
 	})
 
 	assertMemberExists(t, tracker, 1, 1001, true, false)
@@ -216,7 +225,7 @@ func TestChannelUpdate(t *testing.T) {
 		t.Fatal("channel not found")
 	}
 
-	updt := createTestChannel(1, initialTestChannelID, nil)
+	updt := createTestChannel(initialTestGuildID, initialTestChannelID, nil)
 	updt.Name = "this is a new name!"
 
 	tracker.HandleEvent(testSession, &discordgo.ChannelUpdate{
@@ -242,7 +251,7 @@ func TestChannelUpdateThread(t *testing.T) {
 		t.Fatal("thread not found")
 	}
 
-	updt := createTestThread(1, initialTestThreadID, nil)
+	updt := createTestThread(initialTestGuildID, initialTestThreadID, nil, initialTestChannelID)
 	updt.Name = "this is a new name!"
 
 	tracker.HandleEvent(testSession, &discordgo.ChannelUpdate{
@@ -304,7 +313,7 @@ func createTestStateThreadEvents(conf TrackerConfig) *InMemoryTracker {
 			},
 		},
 		Threads: []*discordgo.Channel{
-			createTestThread(initialTestGuildID, initialTestThreadID, nil),
+			createTestThread(initialTestGuildID, initialTestThreadID, nil, initialTestChannelID),
 		},
 	})
 
@@ -375,7 +384,7 @@ func TestThreadEvents(t *testing.T) {
 	}
 
 	tracker.HandleEvent(testSession, &discordgo.ThreadCreate{
-		Channel: createTestThread(initialTestGuildID, secondTestThreadID, nil),
+		Channel: createTestThread(initialTestGuildID, secondTestThreadID, nil, initialTestChannelID),
 	})
 
 	tracker.HandleEvent(testSession, &discordgo.ThreadMembersUpdate{
