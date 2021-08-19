@@ -516,7 +516,6 @@ OUTER:
 
 	sort.Sort(dstate.Channels(newSparseGuild.Channels))
 	shard.guilds[evt.GuildID] = newSparseGuild
-
 }
 
 // handleThreadMembersUpdate handles the Thread Members Update event from discord.
