@@ -121,7 +121,14 @@ func (gs *GuildSet) GetThread(id int64) *ChannelState {
 	}
 
 	return nil
+}
 
+func (gs *GuildSet) GetChannelOrThread(id int64) *ChannelState {
+	if cs := gs.GetChannel(id); cs != nil {
+		return cs
+	}
+
+	return gs.GetThread(id)
 }
 
 type GuildState struct {
