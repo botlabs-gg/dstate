@@ -23,6 +23,7 @@ func (tracker *InMemoryTracker) GetGuild(guildID int64) *dstate.GuildSet {
 		Roles:       set.Roles,
 		Emojis:      set.Emojis,
 		VoiceStates: set.VoiceStates,
+		Threads:     set.Threads,
 	}
 }
 
@@ -31,14 +32,19 @@ func (tracker *InMemoryTracker) GetMember(guildID int64, memberID int64) *dstate
 	shard.mu.RLock()
 	defer shard.mu.RUnlock()
 
-	return shard.getMemberLocked(guildID, memberID)
+	ms := shard.getMemberLocked(guildID, memberID)
+	if ms != nil {
+		return &ms.MemberState
+	}
+
+	return nil
 }
 
-func (shard *ShardTracker) getMemberLocked(guildID int64, memberID int64) *dstate.MemberState {
+func (shard *ShardTracker) getMemberLocked(guildID int64, memberID int64) *WrappedMember {
 
 	if members, ok := shard.members[guildID]; ok {
 		if ms, ok := members[memberID]; ok {
-			return &ms.MemberState
+			return ms
 		}
 	}
 
@@ -204,6 +210,7 @@ func (tracker *InMemoryTracker) GetShardGuilds(shardID int64) []*dstate.GuildSet
 			Roles:       v.Roles,
 			Emojis:      v.Emojis,
 			VoiceStates: v.VoiceStates,
+			Threads:     v.Threads,
 		})
 	}
 

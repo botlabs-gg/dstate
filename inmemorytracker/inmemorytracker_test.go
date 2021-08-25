@@ -9,10 +9,15 @@ import (
 
 var testSession = &discordgo.Session{ShardID: 0, ShardCount: 1}
 
-const initialTestGuildID = 1
-const initialTestChannelID = 10
-const initialTestRoleID = 100
-const initialTestMemberID = 1000
+const (
+	initialTestGuildID   = 1
+	initialTestChannelID = 10
+	initialTestRoleID    = 100
+	initialTestMemberID  = 1000
+
+	intialTestThreadID = 10000
+	testThreadID       = 10001
+)
 
 func createTestChannel(guildID int64, channelID int64, permissionsOverwrites []*discordgo.PermissionOverwrite) *discordgo.Channel {
 	return &discordgo.Channel{
@@ -64,6 +69,15 @@ func createTestState(conf TrackerConfig) *InMemoryTracker {
 			Roles: []*discordgo.Role{
 				{ID: initialTestRoleID},
 			},
+			Threads: []*discordgo.Channel{
+				{
+					ID:             intialTestThreadID,
+					Name:           "test",
+					Type:           discordgo.ChannelTypeGuildPublicThread,
+					ParentID:       initialTestChannelID,
+					ThreadMetadata: &discordgo.ThreadMetadata{},
+				},
+			},
 		},
 	})
 
@@ -100,6 +114,10 @@ func TestGuildCreate(t *testing.T) {
 
 	if gs.GetChannel(initialTestChannelID) == nil {
 		t.Fatal("gc channel is nil")
+	}
+
+	if gs.GetThread(intialTestThreadID) == nil {
+		t.Fatal("thread not found")
 	}
 }
 
@@ -176,5 +194,121 @@ func TestRoleUpdate(t *testing.T) {
 
 	if role.Name != updt.Role.Name {
 		t.Fatalf("role was not updated: name: %s", role.Name)
+	}
+}
+
+func TestThreadCreateDelete(t *testing.T) {
+	tracker := createTestState(TrackerConfig{})
+
+	updt := discordgo.Channel{
+		GuildID:        initialTestGuildID,
+		ParentID:       initialTestChannelID,
+		ID:             testThreadID,
+		ThreadMetadata: &discordgo.ThreadMetadata{},
+		Name:           "test",
+	}
+
+	tracker.HandleEvent(testSession, &discordgo.ThreadCreate{
+		Channel: updt,
+	})
+
+	thread := tracker.GetGuild(initialTestGuildID).GetThread(testThreadID)
+	if thread == nil {
+		t.Fatal("thread not found")
+	}
+
+	if thread.Name != updt.Name {
+		t.Fatalf("thread was not updated: name: %s", thread.Name)
+	}
+
+	tracker.HandleEvent(testSession, &discordgo.ThreadDelete{
+		ID:       updt.ID,
+		GuildID:  updt.GuildID,
+		ParentID: updt.ParentID,
+		Type:     discordgo.ChannelTypeGuildPublicThread,
+	})
+
+	thread = tracker.GetGuild(initialTestGuildID).GetThread(testThreadID)
+	if thread != nil {
+		t.Fatal("thread should have been deleted")
+	}
+}
+
+func TestThreadArchive(t *testing.T) {
+	tracker := createTestState(TrackerConfig{})
+
+	updt := discordgo.Channel{
+		GuildID:        initialTestGuildID,
+		ParentID:       initialTestChannelID,
+		ID:             testThreadID,
+		ThreadMetadata: &discordgo.ThreadMetadata{},
+		Name:           "test",
+	}
+
+	tracker.HandleEvent(testSession, &discordgo.ThreadCreate{
+		Channel: updt,
+	})
+
+	thread := tracker.GetGuild(initialTestGuildID).GetThread(testThreadID)
+	if thread == nil {
+		t.Fatal("thread not found")
+	}
+
+	if thread.Name != updt.Name {
+		t.Fatalf("thread was not updated: name: %s", thread.Name)
+	}
+
+	cop := updt
+	cop.ThreadMetadata.Archived = true
+
+	tracker.HandleEvent(testSession, &discordgo.ThreadUpdate{
+		Channel: cop,
+	})
+
+	thread = tracker.GetGuild(initialTestGuildID).GetThread(testThreadID)
+	if thread != nil {
+		t.Fatal("thread should have been removed")
+	}
+}
+
+func TestThreadParentPerms(t *testing.T) {
+	botID := initialTestMemberID + 1
+	tracker := createTestState(TrackerConfig{
+		BotMemberID: int64(botID),
+	})
+
+	tracker.HandleEvent(testSession, &discordgo.ChannelUpdate{
+		Channel: createTestChannel(initialTestGuildID, initialTestChannelID, []*discordgo.PermissionOverwrite{
+			{Type: discordgo.PermissionOverwriteTypeMember, ID: int64(botID), Allow: discordgo.PermissionViewChannel},
+		}),
+	})
+
+	// add the bot member
+	memberAdd := discordgo.Member{
+		GuildID: initialTestGuildID,
+		User: &discordgo.User{
+			ID: int64(botID),
+		},
+	}
+	tracker.HandleEvent(testSession, &discordgo.GuildMemberAdd{
+		Member: &memberAdd,
+	})
+
+	thread := tracker.GetGuild(initialTestGuildID).GetThread(intialTestThreadID)
+	if thread == nil {
+		t.Fatal("thread not found")
+	}
+
+	// update the channel to remove the bot user
+	chUpdt2 := createTestChannel(initialTestGuildID, initialTestChannelID, []*discordgo.PermissionOverwrite{
+		{Type: discordgo.PermissionOverwriteTypeMember, ID: int64(botID), Deny: discordgo.PermissionViewChannel},
+	})
+	tracker.HandleEvent(testSession, &discordgo.ChannelUpdate{
+		Channel: chUpdt2,
+	})
+
+	thread = tracker.GetGuild(initialTestGuildID).GetThread(testThreadID)
+	if thread != nil {
+		t.Fatal("thread should have been removed")
 	}
 }

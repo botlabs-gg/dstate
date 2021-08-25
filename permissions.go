@@ -2,7 +2,7 @@ package dstate
 
 import "github.com/jonas747/discordgo/v2"
 
-const AllPermissions int64 = ^0
+const AllPermissions int64 = discordgo.PermissionAll
 
 // Apply this mask to channel permissions to filter them out
 // discord performs no server side validation so this is needed
@@ -15,17 +15,22 @@ const ChannelPermsMask = ^(discordgo.PermissionAdministrator |
 	discordgo.PermissionKickMembers |
 	discordgo.PermissionBanMembers)
 
-// CalculatePermissions calculates a members permissions
+// CalculatePermissions calculates the full permissions of a user
 func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites []discordgo.PermissionOverwrite, memberID int64, roles []int64) (perms int64) {
-	if g.OwnerID == memberID {
+	perms = CalculateBasePermissions(g.ID, g.OwnerID, guildRoles, memberID, roles)
+	perms = ApplyChannelPermissions(perms, g.ID, overwrites, memberID, roles)
+	return perms
+}
+
+// CalculateBasePermissions calculates the guild scope permissions, excluding channel overwrites
+func CalculateBasePermissions(guildID int64, ownerID int64, guildRoles []discordgo.Role, memberID int64, roles []int64) (perms int64) {
+	if ownerID == memberID {
 		return AllPermissions
 	}
 
-	// Check guild scope permissions
-
 	// everyone role first
 	for _, role := range guildRoles {
-		if role.ID == g.ID {
+		if role.ID == guildID {
 			perms |= int64(role.Permissions)
 			break
 		}
@@ -46,6 +51,11 @@ func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites
 		return AllPermissions
 	}
 
+	return perms
+}
+
+// ApplyChannelPermissions applies the channel permission overwrites to the input perms
+func ApplyChannelPermissions(perms int64, guildID int64, overwrites []discordgo.PermissionOverwrite, memberID int64, roles []int64) int64 {
 	if len(overwrites) == 0 {
 		return perms
 	}
@@ -54,7 +64,7 @@ func CalculatePermissions(g *GuildState, guildRoles []discordgo.Role, overwrites
 
 	// Apply @everyone overrides from the channel.
 	for _, overwrite := range overwrites {
-		if g.ID == overwrite.ID {
+		if guildID == overwrite.ID {
 			perms &= ^int64(overwrite.Deny & ChannelPermsMask)
 			perms |= int64(overwrite.Allow & ChannelPermsMask)
 			break

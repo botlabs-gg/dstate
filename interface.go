@@ -50,6 +50,7 @@ type GuildSet struct {
 	GuildState
 
 	Channels    []ChannelState
+	Threads     []ChannelState
 	Roles       []discordgo.Role
 	Emojis      []discordgo.Emoji
 	VoiceStates []discordgo.VoiceState
@@ -110,6 +111,17 @@ func (gs *GuildSet) GetEmoji(id int64) *discordgo.Emoji {
 	}
 
 	return nil
+}
+
+func (gs *GuildSet) GetThread(id int64) *ChannelState {
+	for i := range gs.Threads {
+		if gs.Threads[i].ID == id {
+			return &gs.Threads[i]
+		}
+	}
+
+	return nil
+
 }
 
 type GuildState struct {
@@ -174,18 +186,20 @@ type GuildState struct {
 }
 
 type ChannelState struct {
-	ID               int64                 `json:"id,string"`
-	GuildID          int64                 `json:"guild_id,string"`
-	Name             string                `json:"name"`
-	Topic            string                `json:"topic"`
-	Type             discordgo.ChannelType `json:"type"`
-	NSFW             bool                  `json:"nsfw"`
-	Icon             string                `json:"icon"`
-	Position         int                   `json:"position"`
-	Bitrate          int                   `json:"bitrate"`
-	UserLimit        int                   `json:"user_limit"`
-	ParentID         int64                 `json:"parent_id,string"`
-	RateLimitPerUser int                   `json:"rate_limit_per_user"`
+	ID               int64                     `json:"id,string"`
+	GuildID          int64                     `json:"guild_id,string"`
+	Name             string                    `json:"name"`
+	Topic            string                    `json:"topic"`
+	Type             discordgo.ChannelType     `json:"type"`
+	NSFW             bool                      `json:"nsfw"`
+	Icon             string                    `json:"icon"`
+	Position         int                       `json:"position"`
+	Bitrate          int                       `json:"bitrate"`
+	UserLimit        int                       `json:"user_limit"`
+	ParentID         int64                     `json:"parent_id,string"`
+	RateLimitPerUser int                       `json:"rate_limit_per_user"`
+	OwnerID          int64                     `json:"owner_id,string"`
+	ThreadMetadata   *discordgo.ThreadMetadata `json:"thread_metadata"`
 
 	PermissionOverwrites []discordgo.PermissionOverwrite `json:"permission_overwrites"`
 }
