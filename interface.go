@@ -58,15 +58,21 @@ type GuildSet struct {
 
 func (gs *GuildSet) GetMemberPermissions(channelID int64, memberID int64, roles []int64) (perms int64, err error) {
 
-	var overwrites []discordgo.PermissionOverwrite
+	channel := gs.GetChannelOrThread(channelID)
+	if channel != nil {
+		if channel.Type == discordgo.ChannelTypeGuildPublicThread || channel.Type == discordgo.ChannelTypeGuildPrivateThread {
+			// use thread parent channel for perms
+			channel = gs.GetChannel(channel.ParentID)
+		}
+	}
 
-	if channel := gs.GetChannel(channelID); channel != nil {
-		overwrites = channel.PermissionOverwrites
-	} else if channelID != 0 {
-		// we still continue as far as we can with the calculations even though we can't apply channel permissions
+	var overwrites []discordgo.PermissionOverwrite
+	if channel == nil && channelID != 0 {
 		err = &ErrChannelNotFound{
 			ChannelID: channelID,
 		}
+	} else if channel != nil {
+		overwrites = channel.PermissionOverwrites
 	}
 
 	perms = CalculatePermissions(&gs.GuildState, gs.Roles, overwrites, memberID, roles)
