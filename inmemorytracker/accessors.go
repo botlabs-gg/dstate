@@ -241,7 +241,7 @@ func (tracker *InMemoryTracker) SetMember(ms *dstate.MemberState) {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
-	shard.innerHandleMemberUpdate(ms)
+	shard.innerHandleMemberUpdate(ms, false)
 }
 
 // DelShard allows you to manually reset shards in the state

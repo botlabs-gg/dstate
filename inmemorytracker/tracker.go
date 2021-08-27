@@ -318,7 +318,7 @@ func (shard *ShardTracker) handleGuildCreate(gc *discordgo.GuildCreate) {
 
 		ms := dstate.MemberStateFromMember(v)
 		ms.GuildID = gc.ID
-		shard.innerHandleMemberUpdate(ms)
+		shard.innerHandleMemberUpdate(ms, false)
 	}
 }
 
@@ -535,17 +535,17 @@ func (shard *ShardTracker) handleMemberCreate(m *discordgo.GuildMemberAdd) {
 	newSparseGuild.Guild.MemberCount++
 	shard.guilds[m.GuildID] = newSparseGuild
 
-	shard.innerHandleMemberUpdate(dstate.MemberStateFromMember(m.Member))
+	shard.innerHandleMemberUpdate(dstate.MemberStateFromMember(m.Member), true)
 }
 
 func (shard *ShardTracker) handleMemberUpdate(m *discordgo.Member) {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
-	shard.innerHandleMemberUpdate(dstate.MemberStateFromMember(m))
+	shard.innerHandleMemberUpdate(dstate.MemberStateFromMember(m), true)
 }
 
 // assumes state is locked
-func (shard *ShardTracker) innerHandleMemberUpdate(ms *dstate.MemberState) {
+func (shard *ShardTracker) innerHandleMemberUpdate(ms *dstate.MemberState, doThreadsCheck bool) {
 
 	wrapped := &WrappedMember{
 		lastUpdated: time.Now(),
@@ -563,10 +563,10 @@ func (shard *ShardTracker) innerHandleMemberUpdate(ms *dstate.MemberState) {
 	if existing, ok := members[ms.User.ID]; ok {
 		// carry over presence
 		wrapped.Presence = existing.Presence
-		if shard.conf.BotMemberID == ms.User.ID && shard.hasRemovedRole(existing.Member.Roles, ms.Member.Roles) {
+		if doThreadsCheck && shard.conf.BotMemberID == ms.User.ID && (existing.Member == nil || shard.hasRemovedRole(existing.Member.Roles, ms.Member.Roles)) {
 			shard.botMemberUpdateCheckThreads(wrapped)
 		}
-	} else if shard.conf.BotMemberID == ms.User.ID {
+	} else if doThreadsCheck && shard.conf.BotMemberID == ms.User.ID {
 		shard.botMemberUpdateCheckThreads(wrapped)
 	}
 
