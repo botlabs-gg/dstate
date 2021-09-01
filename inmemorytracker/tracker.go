@@ -72,6 +72,7 @@ func SparseGuildStateFromDstate(gs *dstate.GuildSet) *SparseGuildState {
 		Roles:       gs.Roles,
 		Emojis:      gs.Emojis,
 		VoiceStates: gs.VoiceStates,
+		Threads:     gs.Threads,
 	}
 }
 
