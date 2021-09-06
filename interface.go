@@ -60,7 +60,7 @@ func (gs *GuildSet) GetMemberPermissions(channelID int64, memberID int64, roles 
 
 	channel := gs.GetChannelOrThread(channelID)
 	if channel != nil {
-		if channel.Type == discordgo.ChannelTypeGuildPublicThread || channel.Type == discordgo.ChannelTypeGuildPrivateThread {
+		if channel.Type.IsThread() {
 			// use thread parent channel for perms
 			channel = gs.GetChannel(channel.ParentID)
 		}
