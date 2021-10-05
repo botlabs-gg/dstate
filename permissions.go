@@ -60,6 +60,11 @@ func ApplyChannelPermissions(perms int64, guildID int64, overwrites []discordgo.
 		return perms
 	}
 
+	// If user is admin or owner, overrides dont apply
+	if perms == AllPermissions {
+		return perms
+	}
+
 	// Apply chanel overwrites
 
 	// Apply @everyone overrides from the channel.
