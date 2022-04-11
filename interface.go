@@ -241,6 +241,7 @@ type MemberFields struct {
 	JoinedAt discordgo.Timestamp
 	Roles    []int64
 	Nick     string
+	Avatar   string
 }
 
 type PresenceStatus int32
@@ -283,6 +284,7 @@ func MemberStateFromMember(member *discordgo.Member) *MemberState {
 			JoinedAt: member.JoinedAt,
 			Roles:    member.Roles,
 			Nick:     member.Nick,
+			Avatar:   member.Avatar,
 		},
 		Pending:  member.Pending,
 		Presence: nil,
@@ -300,6 +302,7 @@ func (ms *MemberState) DgoMember() *discordgo.Member {
 		GuildID:  ms.GuildID,
 		JoinedAt: ms.Member.JoinedAt,
 		Nick:     ms.Member.Nick,
+		Avatar:   ms.Member.Avatar,
 		Roles:    ms.Member.Roles,
 		User:     &ms.User,
 		Pending:  ms.Pending,
