@@ -234,7 +234,6 @@ type MemberState struct {
 	// These are not always available and all usages should be checked
 	Member   *MemberFields
 	Presence *PresenceFields
-	Pending  bool
 }
 
 type MemberFields struct {
@@ -242,6 +241,7 @@ type MemberFields struct {
 	Roles    []int64
 	Nick     string
 	Avatar   string
+	Pending  bool
 }
 
 type PresenceStatus int32
@@ -285,8 +285,8 @@ func MemberStateFromMember(member *discordgo.Member) *MemberState {
 			Roles:    member.Roles,
 			Nick:     member.Nick,
 			Avatar:   member.Avatar,
+			Pending:  member.Pending,
 		},
-		Pending:  member.Pending,
 		Presence: nil,
 	}
 }
@@ -305,7 +305,7 @@ func (ms *MemberState) DgoMember() *discordgo.Member {
 		Avatar:   ms.Member.Avatar,
 		Roles:    ms.Member.Roles,
 		User:     &ms.User,
-		Pending:  ms.Pending,
+		Pending:  ms.Member.Pending,
 	}
 
 	if ms.Member != nil {
